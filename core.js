@@ -34,7 +34,7 @@ export const STRINGS = {
     d_build: 'Build',
     d_site: 'Site ID',
     d_siteLoc: 'Site location',
-    d_temp: 'Radar temperature',
+    d_temp: 'Sensor temperature',
     d_uptime: 'Running for',
     d_pwr: 'Power interruptions',
     d_tank: 'Tank L × W × H',
