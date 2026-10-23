@@ -10,7 +10,7 @@ export const STRINGS = {
     unitL: 'L',
     unitMm: 'mm',
     ofCap: 'of {c} L',
-    rawLitres: 'Raw ADC Value: {v}/{m}',
+    rawAdc: 'Raw ADC Value: {v}/{m}',
     rawTable: 'Litres → Raw ADC Value table',
     rawTableHint: 'A linear 0-{m} scale: 0 is empty, {m} is this tank’s capacity ({c} L). Recalculates if the tank size changes.',
     rawTableL: 'Litres',
@@ -592,14 +592,14 @@ export function fillPctOf(st) {
   return c > 0 ? 100 * litresOf(st) / c : 0;
 }
 // A customer's downstream register: 0-4095, linear on litres, clamped (same as the 1.2.5 dashboard).
-export const RAW_LITRES_MAX = 4095;
-export function rawLitresFromLitres(litres, capacity) {
+export const RAW_ADC_MAX = 4095;
+export function rawAdcFromLitres(litres, capacity) {
   if (!(capacity > 0)) return 0;
-  return Math.max(0, Math.min(RAW_LITRES_MAX, Math.round(litres * RAW_LITRES_MAX / capacity)));
+  return Math.max(0, Math.min(RAW_ADC_MAX, Math.round(litres * RAW_ADC_MAX / capacity)));
 }
-export function rawLitresOf(st) {
-  if (st && fin(st.raw_litres)) return st.raw_litres;
-  return rawLitresFromLitres(litresOf(st), capacityOf(st));
+export function rawAdcOf(st) {
+  if (st && fin(st.raw_adc)) return st.raw_adc;
+  return rawAdcFromLitres(litresOf(st), capacityOf(st));
 }
 
 const STATUS_CLS = { steady: 'ok', moving: 'neu', checking: 'neu', starting: 'neu', holding: 'warn', no_radar: 'warn', safe_mode: 'bad' };

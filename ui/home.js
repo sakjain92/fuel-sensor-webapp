@@ -1,7 +1,7 @@
 // The dashboard: level, litres, percentage, status, totals, Bluetooth line, device details, Raw ADC Value table.
 import {
-  STR, t, fin, fmtLitres, fmtMm, fmtPct, fmtLpmm, fmtNum, fmtDuration, fmtAgo, levelOf, litresOf, capacityOf, fillPctOf, rawLitresOf,
-  rawLitresFromLitres, RAW_LITRES_MAX, statusView, fuelView, healthFlags, buildText, tankText, lpmmOf, siteLocText, linkSummary,
+  STR, t, fin, fmtLitres, fmtMm, fmtPct, fmtLpmm, fmtNum, fmtDuration, fmtAgo, levelOf, litresOf, capacityOf, fillPctOf, rawAdcOf,
+  rawAdcFromLitres, RAW_ADC_MAX, statusView, fuelView, healthFlags, buildText, tankText, lpmmOf, siteLocText, linkSummary,
 } from '../core.js';
 import { $, rows } from './dom.js';
 
@@ -17,7 +17,7 @@ export function initHome(ctx) {
     card.hidden = false;
     if (capacity === rawTableCap) return;
     rawTableCap = capacity;
-    $('rawTableHint').textContent = t('rawTableHint', { m: String(RAW_LITRES_MAX), c: fmtLitres(capacity) });
+    $('rawTableHint').textContent = t('rawTableHint', { m: String(RAW_ADC_MAX), c: fmtLitres(capacity) });
     const body = $('rawTableBody');
     body.textContent = '';
     const add = (l, r) => {
@@ -26,8 +26,8 @@ export function initHome(ctx) {
       tr.appendChild(a); tr.appendChild(b); body.appendChild(tr);
     };
     const lastWhole = Math.floor(capacity / 5) * 5;
-    for (let litres = 0; litres <= lastWhole; litres += 5) add(fmtLitres(litres), fmtNum(rawLitresFromLitres(litres, capacity), 0));
-    if (lastWhole < capacity) add(fmtLitres(capacity), String(RAW_LITRES_MAX));
+    for (let litres = 0; litres <= lastWhole; litres += 5) add(fmtLitres(litres), fmtNum(rawAdcFromLitres(litres, capacity), 0));
+    if (lastWhole < capacity) add(fmtLitres(capacity), String(RAW_ADC_MAX));
   }
 
   function renderBt() {
@@ -54,7 +54,7 @@ export function initHome(ctx) {
     $('bar').setAttribute('aria-valuenow', String(Math.round(p)));
     $('pct').textContent = fmtPct(p) + ' %';
     $('cap').textContent = t('ofCap', { c: fmtLitres(capacityOf(st)) });
-    $('rawLit').textContent = t('rawLitres', { v: fmtNum(rawLitresOf(st), 0), m: String(RAW_LITRES_MAX) });
+    $('rawLit').textContent = t('rawAdc', { v: fmtNum(rawAdcOf(st), 0), m: String(RAW_ADC_MAX) });
     renderRawTable(capacityOf(st));
     const fv = fuelView(st);
     $('tot').hidden = !fv;

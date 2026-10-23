@@ -280,7 +280,7 @@ export class FakeSensor {
     const o = {
       fw: s.fw, variant: this.variant, chip: this.chip, mac: this.mac,
       level_mm: r2(s.level_mm), litres: r2(lit), capacity_l: r1(cap), fill_pct: r1(100 * lit / cap),
-      raw_litres: clamp(Math.round(lit * 4095 / cap), 0, 4095),
+      raw_adc: clamp(Math.round(lit * 4095 / cap), 0, 4095),
       source: 'estimate', status: this._statusWord(), age_s: 0.3, temp_c: 38,
       uptime_s: this.uptimeS(), boots: s.boots, power_interruptions: s.powerInterruptions, changes: s.changes,
       site_id: s.site_id, site_lat: s.site_lat, site_lon: s.site_lon,
