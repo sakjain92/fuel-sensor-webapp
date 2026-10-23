@@ -608,7 +608,7 @@ export class FakeSensor {
     const moved = req.moved_m === undefined ? null : req.moved_m;
     const report = {
       serial: s.serial, since_reset: s.sinceReset,
-      line: 'Fill report #' + s.serial + ' · MRM-Fuel-' + this.mac + ' · ' + when + ' · operator ' + req.litres.toFixed(1) + ' L · sensor ' + sensorL.toFixed(1) + ' L',
+      line: 'Fill report #' + s.serial + ' · PROCOM-SENSOR-' + this.mac + ' · ' + when + ' · operator ' + req.litres.toFixed(1) + ' L · sensor ' + sensorL.toFixed(1) + ' L',
       code: 'FR-' + crockfordFrom(this.mac + s.serial + ':' + req.litres, 24),
       operator_l: r2(req.litres), sensor_l: r2(sensorL), drained_l: 0,
       level_before_mm: r2(f.levelBefore), level_after_mm: r2(after), lpmm: r6(lpmm),
