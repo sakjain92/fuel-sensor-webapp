@@ -77,7 +77,7 @@ export const STRINGS = {
     cn_title: 'Connect to the sensor',
     cn_sensor: 'Sensor',
     cn_help: 'Stand close to the sensor and make sure the sensor is powered on. Press Connect, then choose this sensor in the list.',
-    cn_helpAny: 'Stand close to the sensor and make sure the sensor is powered on. Press Connect, then choose your sensor in the list. Its name starts with PROCOM-SENSOR-.',
+    cn_helpAny: 'Stand close to the sensor and make sure the sensor is powered on. Press Connect, then choose your sensor in the list.',
     cn_btn: 'Connect',
     cn_again: 'Connect again',
     cn_choosing: 'Choose the sensor in the list…',
