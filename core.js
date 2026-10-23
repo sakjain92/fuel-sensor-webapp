@@ -425,7 +425,7 @@ export const STRINGS = {
     rsYes: 'Restart now',
     w_restarting: 'Restarting…',
     w_reconnect: 'The app reconnects by itself in about 30 s.',
-    w_hint: 'Stay close to the sensor with Bluetooth switched on. This page updates by itself.',
+    w_hint: 'Stay close to the sensor with the sensor powered on. This page updates by itself.',
     w_long: 'Still waiting for the sensor. Stay close to it and check that Bluetooth is on.',
     w_restarted: 'The sensor restarted.',
     w_trial: 'Now running {v}. Checking itself…',
