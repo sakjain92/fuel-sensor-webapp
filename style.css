@@ -21,8 +21,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.45 system-ui,-ap
 button,input,textarea{font:inherit;color:inherit}
 :focus-visible{outline:3px solid var(--acc);outline-offset:2px}
 .top{background:var(--hdr);color:#fff;display:flex;align-items:center;gap:12px;padding:10px 16px;min-height:52px}
-.brand{font-size:12px;font-weight:800;letter-spacing:.16em;border:2px solid #fff;padding:2px 5px 1px 7px;line-height:1.2}
-.top span{font-weight:600;font-size:17px}
+.brand{flex:none;width:34px;height:34px;border-radius:50%;background:#fff url(icons/icon-192.png) center/cover no-repeat}
+.top>span:not(.brand){font-weight:600;font-size:17px}
 .top .tag{margin-left:auto;font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;background:var(--warn);color:var(--warn2);padding:2px 8px;border-radius:4px}
 main{max-width:560px;margin:0 auto;padding:14px 16px 40px}
 h1{font-size:24px;line-height:1.25;margin:4px 0 8px}

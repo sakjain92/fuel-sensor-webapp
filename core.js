@@ -84,7 +84,7 @@ export const STRINGS = {
     cn_connecting: 'Connecting to the sensor…',
     cn_starting: 'Starting…',
     cn_demo: 'Demo mode: a simulated sensor. No Bluetooth is used.',
-    cn_busy: 'The sensor can talk to one phone at a time. If it does not show up, disconnect the other phone first.',
+    cn_busy: 'The sensor can talk to one phone at a time. If it doesn\'t show up in the list, disconnect the other phone first and make sure the sensor is powered on.',
     cn_perm: 'If Chrome asks to turn on Location, or to allow Nearby devices, say yes: Android needs it to find the sensor.',
     ce_cancelled: 'No sensor was chosen. Press Connect and pick the sensor in the list.',
     ce_off: 'Bluetooth is switched off. Turn it on in the phone settings and try again.',
