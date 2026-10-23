@@ -1,4 +1,4 @@
-// The dashboard: level, litres, percentage, status, totals, Bluetooth line, device details, Raw Litres table.
+// The dashboard: level, litres, percentage, status, totals, Bluetooth line, device details, Raw ADC Value table.
 import {
   STR, t, fin, fmtLitres, fmtMm, fmtPct, fmtLpmm, fmtNum, fmtDuration, fmtAgo, levelOf, litresOf, capacityOf, fillPctOf, rawLitresOf,
   rawLitresFromLitres, RAW_LITRES_MAX, statusView, fuelView, healthFlags, buildText, tankText, lpmmOf, siteLocText, linkSummary,
@@ -9,7 +9,7 @@ export function initHome(ctx) {
   const { app, client } = ctx;
   let rawTableCap = null;
 
-  // Litres -> Raw Litres (0-4095, linear): every 5 L up to the capacity, plus a last row at the exact capacity.
+  // Litres -> Raw ADC Value (0-4095, linear): every 5 L up to the capacity, plus a last row at the exact capacity.
   // Rebuilt only when the capacity changes.
   function renderRawTable(capacity) {
     const card = $('cRawTable');
