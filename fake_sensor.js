@@ -150,7 +150,7 @@ export class FakeSensor {
   }
   enableNotifications() {
     this.notifying = true;
-    this._send({ ev: 'hello', proto: 1, fw: this.s.fw, variant: this.variant, chip: this.chip, mac: this.mac });
+    this._send({ ev: 'hello', proto: 1, fw: this.s.fw, variant: this.variant, chip: this.chip, mac: this.mac, caps: this._caps(), min_app: 1 });
     if (this.tickTimer) this.clock.clearInterval(this.tickTimer);
     this.tickTimer = this._timer('setInterval', () => this._tick(), this.statusMs);
     this._ticks = 0;
@@ -360,7 +360,8 @@ export class FakeSensor {
   }
 
   // ------------------------------------------------------------------ commands: general and login
-  cmd_hello() { return { proto: 1, fw: this.s.fw, variant: this.variant, chip: this.chip, mac: this.mac }; }
+  cmd_hello() { return { proto: 1, fw: this.s.fw, variant: this.variant, chip: this.chip, mac: this.mac, caps: this._caps(), min_app: 1 }; }
+  _caps() { return ['status', 'fill', 'maint', 'ota', 'link', 'regs', 'clock'].concat(this.chip === 'esp32c3' ? ['range'] : [], this.variant === 'debug' ? ['logs', 'raw'] : []); }
   cmd_ping() { return {}; }
   cmd_status() { return this.statusObject(); }
   cmd_subscribe(req) {

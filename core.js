@@ -93,6 +93,7 @@ export const STRINGS = {
     ce_blocked: 'Bluetooth is not allowed on this page. Check the site permissions in Chrome.',
     ce_notsensor: 'This device does not look like an MRM fuel sensor.',
     ce_proto: 'This sensor speaks a newer version of the protocol. Reload this page to get the latest version of the app.',
+    ce_minapp: 'This sensor needs a newer version of the app. Reload this page to get the latest version.',
     unsupported: 'For the best experience, open this page in Google Chrome on an Android phone.',
     unsupportedId: 'Sensor {id}',
     bt_lost: 'Bluetooth connection lost.',
@@ -937,4 +938,11 @@ export function fillErrText(e) {
     if (STR[k] !== undefined) return STR[k];
   }
   return errText(e);
+}
+
+// Does the sensor offer a feature (PROTOCOL.md 12 `hello.caps`)? A hello without `caps` is an older firmware: the 2.0.0 set.
+export const DEFAULT_CAPS = ['status', 'fill', 'maint', 'ota', 'link', 'regs', 'clock'];
+export function hasCap(hello, word) {
+  const caps = hello && Array.isArray(hello.caps) ? hello.caps : DEFAULT_CAPS;
+  return caps.indexOf(word) >= 0;
 }

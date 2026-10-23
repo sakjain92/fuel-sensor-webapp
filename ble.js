@@ -19,6 +19,13 @@ export const MAX_LINE = 2048;       // bytes per line, newline included, both di
 export const MIN_WRITE = 20;        // ATT MTU 23 minus 3
 export const MAX_WRITE = 512;       // the largest value Web Bluetooth writes at once
 export const PROTO = 1;
+// Feature level of this app (PROTOCOL.md 12 `hello.min_app`): a sensor that needs a higher level refuses this app. Raise it only when
+// the app gains behaviour that a newer firmware may depend on.
+export const APP_LEVEL = 1;
+// Must this app stop because the sensor asks for a newer one? (`min_app` missing or not a number: no.)
+export function needsNewerApp(hello) {
+  return !!hello && typeof hello.min_app === 'number' && hello.min_app > APP_LEVEL;
+}
 
 // ---------------------------------------------------------------- errors
 export class ProtocolError extends Error {
@@ -237,10 +244,11 @@ export class JsonLinesClient extends Emitter {
     }
     if (!this.hello) {
       const r = await this._request('hello', {}, { timeoutMs: this.helloTimeoutMs });
-      this.hello = { ev: 'hello', proto: r.proto, fw: r.fw, variant: r.variant, chip: r.chip, mac: r.mac };
+      this.hello = { ev: 'hello', proto: r.proto, fw: r.fw, variant: r.variant, chip: r.chip, mac: r.mac, caps: r.caps, min_app: r.min_app };
       this.emit('hello', this.hello);
     }
     if (this.hello.proto !== PROTO) throw new ConnectError('ce_proto', new Error('sensor speaks protocol ' + this.hello.proto));
+    if (needsNewerApp(this.hello)) throw new ConnectError('ce_minapp', new Error('sensor needs app level ' + this.hello.min_app));
     // How big may one write be? The `link` reply knows the negotiated MTU.
     try { this._setLink(await this._request('link', {}, { timeoutMs: 3000 })); } catch (e) {
       if (e instanceof DisconnectedError) throw e;
