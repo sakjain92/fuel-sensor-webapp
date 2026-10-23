@@ -2,6 +2,9 @@
 import { STR, errText } from '../core.js';
 import { $ } from './dom.js';
 
+// Failures where the sensor may simply be out of reach, taken by another phone, off, or hidden by a missing Android permission.
+const HELP_KEYS = ['ce_cancelled', 'ce_notfound', 'ce_failed'];
+
 export function initConnect(ctx) {
   const { client } = ctx;
   let working = false;
@@ -15,12 +18,14 @@ export function initConnect(ctx) {
     working = on;
     $('bConnect').hidden = on;
     $('cnBusy').hidden = !on;
-    if (on) $('cnErr').hidden = true;
+    if (on) { $('cnErr').hidden = true; $('cnFail').hidden = true; }
   }
   function showError(e) {
     const key = e && e.key;
     $('cnErr').textContent = key && STR[key] ? STR[key] : errText(e);
     $('cnErr').hidden = false;
+    $('cnFail').textContent = STR.cn_busy + ' ' + STR.cn_perm;
+    $('cnFail').hidden = HELP_KEYS.indexOf(key) < 0;
     $('bConnect').textContent = STR.cn_again;
   }
   async function connect() {
