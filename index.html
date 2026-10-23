@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; manifest-src 'self'; worker-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#12171b">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="style.css">
+<title>MRM Fuel Sensor</title>
+</head>
+<body>
+<header class="top"><b class="brand">MRM</b><span data-t="appTitle"></span><b id="demoTag" class="tag" data-t="demoTag" hidden></b></header>
+<div id="lostBar" class="banner lostbar" role="alert" hidden>
+  <p><b data-t="bt_lost"></b> <span data-t="bt_lostHint"></span></p>
+  <button id="bReconnect" class="btn" type="button" data-t="bt_reconnect"></button>
+  <p id="lostMsg" hidden></p>
+</div>
+<main>
+
+<section id="pUnsupported" hidden>
+  <div class="card center">
+    <h1 data-t="unsupported"></h1>
+    <p id="unsId" class="idbig" hidden></p>
+  </div>
+</section>
+
+<section id="pConnect" hidden>
+  <h1 data-t="cn_title"></h1>
+  <p id="cnDemo" class="msg warn" data-t="cn_demo" hidden></p>
+  <div class="card center">
+    <div id="cnIdBox" hidden>
+      <p class="hint" data-t="cn_sensor"></p>
+      <p id="cnId" class="idbig"></p>
+    </div>
+    <p id="cnHelp" class="hint"></p>
+    <button id="bConnect" class="btn pri big" type="button" data-t="cn_btn"></button>
+    <div id="cnBusy" hidden><div class="spin mt"></div><p id="cnStatus" class="big2" role="status"></p><button id="bConnectCancel" class="lnk" type="button" data-t="cancel"></button></div>
+    <p id="cnErr" class="msg bad" role="alert" hidden></p>
+    <p class="hint" data-t="cn_perm"></p>
+    <p class="hint" data-t="cn_busy"></p>
+  </div>
+</section>
+
+<section id="pHome" hidden>
+  <div id="conn0" class="wait0" data-t="cn_starting"></div>
+  <div id="rd" hidden>
+    <div id="stat" class="stat" role="status"><i></i><span id="statT"></span></div>
+    <div class="readout">
+      <div class="lit"><span id="lit"></span><small data-t="unitL"></small></div>
+      <div class="mm"><span id="mm"></span> <span data-t="unitMm"></span></div>
+      <div id="bar" class="bar tk" role="progressbar" aria-valuemin="0" aria-valuemax="100"><i id="barI"></i></div>
+      <div class="barl"><b id="pct"></b><span id="cap"></span></div>
+      <p id="rawLit" class="rawlit"></p>
+      <p id="note" class="note" hidden></p>
+    </div>
+    <p id="upd" class="upd"></p>
+    <p id="btLine" class="upd"></p>
+    <div id="tot" class="tot" hidden>
+      <div class="tt"><span data-t="totFilled"></span><b id="totF"></b><small id="totFn"></small></div>
+      <div class="tt"><span data-t="totDrained"></span><b id="totD"></b><small id="totDn"></small></div>
+      <p id="totNow" class="totnow" hidden></p>
+    </div>
+  </div>
+
+  <div id="cFill" class="card" hidden>
+    <h2 data-t="frTitle"></h2>
+    <div id="fr_idle"><p class="hint" data-t="frIdleHint"></p><button id="bFrStart" class="btn pri big" type="button" data-t="frStart"></button></div>
+    <div id="fr_locating" hidden>
+      <div class="spin"></div>
+      <p class="big2 center" data-t="frLocating"></p>
+      <p class="hint center" data-t="frLocHint"></p>
+      <button id="bFrSkip" class="btn" type="button" data-t="frSkipLoc"></button>
+      <div class="center"><button id="bFrCancel" class="lnk" type="button" data-t="cancel"></button></div>
+    </div>
+    <div id="fr_nolocation" hidden>
+      <p id="frNoLoc" class="msg warn"></p>
+      <div class="row2"><button id="bFrRetry" class="btn" type="button" data-t="frTryAgain"></button><button id="bFrSkip2" class="btn pri" type="button" data-t="frSkipLoc"></button></div>
+      <div class="center"><button id="bFrCancel2" class="lnk" type="button" data-t="cancel"></button></div>
+    </div>
+    <div id="fr_starting" hidden><div class="spin"></div></div>
+    <div id="fr_filling" hidden><p id="frFillT" class="big2"></p><p class="hint" data-t="frFillHint"></p><button id="bFrEnd" class="btn pri big" type="button" data-t="frEnd"></button></div>
+    <div id="fr_measuring" hidden><div class="spin"></div><p id="frMeasT" class="big2 center"></p></div>
+    <div id="fr_ready" hidden>
+      <label for="frL" class="big2" data-t="frLitres"></label>
+      <input id="frL" inputmode="decimal" autocomplete="off" enterkeyhint="done">
+      <p class="hint" data-t="frBlind"></p>
+      <button id="bFrOk" class="btn pri big" type="button" data-t="frConfirm"></button>
+    </div>
+    <p id="frLocLine" class="hint" hidden></p>
+    <p id="frMoved" class="msg warn" role="status" hidden></p>
+    <p id="frRst" class="msg warn" data-t="frRestarted" hidden></p>
+    <p id="frMsg" class="msg" hidden></p>
+  </div>
+
+  <div id="cLast" class="card" hidden>
+    <h2 data-t="frLast"></h2>
+    <p id="frLine"></p>
+    <p id="frFigs" class="figs"></p>
+    <div id="frCode" class="code sm"></div>
+    <div class="row2"><button id="bFrCopy" class="btn" type="button" data-t="frCopy"></button><a id="aFrWa" class="btn" target="_blank" rel="noopener" data-t="frWa"></a></div>
+    <p id="frCopyMsg" class="hint" hidden></p>
+    <button id="bFrFile" class="btn mt" type="button" data-t="frFile"></button>
+    <p id="frFileHint" class="hint"></p>
+    <p id="frFileMsg" class="msg" hidden></p>
+  </div>
+
+  <details class="card"><summary data-t="details"></summary><dl id="dl" class="dl"></dl></details>
+  <details id="cRawTable" class="card" hidden>
+    <summary data-t="rawTable"></summary>
+    <p id="rawTableHint" class="hint"></p>
+    <div class="tblwrap"><table class="rawtbl"><thead><tr><th data-t="rawTableL"></th><th data-t="rawTableR"></th></tr></thead>
+      <tbody id="rawTableBody"></tbody></table></div>
+  </details>
+  <button id="bMaint" class="btn big" type="button"></button>
+  <button id="bRegs" class="btn gap" type="button" data-t="rgBtn"></button>
+  <button id="bLogs" class="btn gap" type="button" data-t="lgBtn" hidden></button>
+  <p class="hint center mt" data-t="bt_disconnectNote"></p>
+  <div class="center"><button id="bDisc" class="lnk" type="button" data-t="bt_disconnect"></button></div>
+</section>
+
+<section id="pLogin" hidden>
+  <button class="lnk" type="button" data-go="" data-t="back"></button>
+  <h1 data-t="maintTitle"></h1>
+  <p id="lgMsg" class="msg bad" hidden></p>
+  <p data-t="loginIntro"></p>
+  <p id="demoReply" class="msg warn" hidden></p>
+  <div class="card">
+    <h2><span class="num">1</span><span data-t="step1"></span></h2>
+    <div id="code" class="code"></div>
+    <p id="lgId" class="hint"></p>
+    <p id="codeNote" class="msg warn" role="status" hidden></p>
+    <button id="bRetry" class="btn mt" type="button" data-t="retry" hidden></button>
+    <div class="row2">
+      <button id="bCopy" class="btn" type="button" data-t="copy"></button>
+      <button id="bShare" class="btn" type="button" data-t="share"></button>
+    </div>
+    <p id="copyMsg" class="hint" hidden></p>
+    <div id="shareAlt" class="row3" hidden>
+      <a id="shWa" class="btn" data-t="shWa"></a><a id="shSms" class="btn" data-t="shSms"></a><a id="shMail" class="btn" data-t="shMail"></a>
+    </div>
+  </div>
+  <div class="card">
+    <h2><span class="num">2</span><span data-t="step2"></span></h2>
+    <textarea id="resp" rows="5" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" data-tp="respPh"></textarea>
+    <p id="respInfo" class="hint"></p>
+    <p id="lock" class="msg warn" role="status" hidden></p>
+    <p id="lgErr" class="msg bad" role="alert" hidden></p>
+    <button id="bUnlock" class="btn pri big" type="button" data-t="unlock"></button>
+  </div>
+  <button id="bNew" class="lnk" type="button" data-t="newCode"></button>
+  <div id="newConf" class="confirm" hidden>
+    <p data-t="newCodeQ"></p>
+    <div class="row2"><button id="bNewYes" class="btn" type="button" data-t="newCodeYes"></button><button id="bNewNo" class="btn" type="button" data-t="cancel"></button></div>
+  </div>
+</section>
+
+<section id="pMaint" hidden>
+  <div class="card sess">
+    <h1 data-t="unlocked"></h1>
+    <p id="sessLeft" class="big2"></p>
+    <p class="hint" data-t="sessNote"></p>
+    <p id="grantInfo" class="hint"></p>
+    <button id="bFinish" class="btn fin big mt" type="button" data-t="finish"></button>
+  </div>
+  <p id="mErr" class="msg bad" hidden></p>
+
+  <div id="cTank" class="card" hidden>
+    <h2 data-t="tankTitle"></h2>
+    <p id="tankNow" class="hint"></p>
+    <div class="dims">
+      <label><span data-t="dimL"></span><input id="tL" inputmode="decimal" autocomplete="off" enterkeyhint="next"></label>
+      <label><span data-t="dimW"></span><input id="tW" inputmode="decimal" autocomplete="off" enterkeyhint="next"></label>
+      <label><span data-t="dimH"></span><input id="tH" inputmode="decimal" autocomplete="off" enterkeyhint="done"></label>
+    </div>
+    <p id="tankErr" class="msg bad" hidden></p>
+    <p id="tankPrev" class="prev"></p>
+    <button id="bTankSave" class="btn pri" type="button" data-t="save"></button>
+    <p id="tankMsg" class="msg" hidden></p>
+    <button id="bTankDef" class="lnk" type="button" data-t="useDefault"></button>
+    <div id="defConf" class="confirm" hidden>
+      <p data-t="defaultQ"></p>
+      <div class="row2"><button id="bDefYes" class="btn" type="button" data-t="defaultYes"></button><button id="bDefNo" class="btn" type="button" data-t="cancel"></button></div>
+    </div>
+  </div>
+
+  <div id="cSite" class="card" hidden>
+    <h2 data-t="siteTitle"></h2>
+    <p id="siteNow" class="hint"></p>
+    <label for="siteIn" class="big2" data-t="siteLabel"></label>
+    <input id="siteIn" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done">
+    <p class="hint" data-t="siteHint"></p>
+    <p id="siteErr" class="msg bad" hidden></p>
+    <div class="row2"><button id="bSiteSave" class="btn pri" type="button" data-t="siteSave"></button><button id="bSiteClear" class="btn" type="button" data-t="siteClear"></button></div>
+    <p id="siteMsg" class="msg" hidden></p>
+    <h2 class="mt" data-t="locTitle"></h2>
+    <p id="locNow" class="hint"></p>
+    <p class="hint" data-t="locHint"></p>
+    <button id="bLocUse" class="btn" type="button" data-t="locUse"></button>
+    <p id="locFix" class="figs" hidden></p>
+    <p id="locWarn" class="msg warn" hidden></p>
+    <button id="bLocSave" class="btn pri gap" type="button" data-t="locSave" hidden></button>
+    <p id="locMsg" class="msg" hidden></p>
+  </div>
+
+  <div id="cClock" class="card" hidden>
+    <h2 data-t="clkTitle"></h2>
+    <p id="clkState" class="big2"></p>
+    <p id="clkSrc" class="hint"></p>
+    <p id="clkDiff" class="hint"></p>
+    <p class="hint" data-t="clkHint"></p>
+    <p id="clkErr" class="msg bad" hidden></p>
+    <button id="bClkSet" class="btn" type="button" data-t="clkBtn" hidden></button>
+    <div id="clkConf" class="confirm" hidden>
+      <p data-t="clkQ"></p>
+      <div class="row2"><button id="bClkYes" class="btn pri" type="button" data-t="clkYes"></button><button id="bClkNo" class="btn" type="button" data-t="cancel"></button></div>
+    </div>
+    <p id="clkMsg" class="msg" hidden></p>
+  </div>
+
+  <div id="cFw" class="card" hidden>
+    <h2 data-t="fwTitle"></h2>
+    <p id="fwNow" class="hint"></p>
+    <button id="bFwOpen" class="btn pri" type="button" data-t="fwOpen"></button>
+  </div>
+
+  <div id="cCrash" class="card" hidden>
+    <h2 data-t="crashTitle"></h2>
+    <p data-t="crashText"></p>
+    <button id="bCrashDl" class="btn" type="button" data-t="crashDl"></button>
+    <p id="crashMsg" class="msg" hidden></p>
+    <button id="bCrashEr" class="lnk" type="button" data-t="crashErase"></button>
+    <div id="ceConf" class="confirm" hidden>
+      <p data-t="crashEraseQ"></p>
+      <div class="row2"><button id="bCeYes" class="btn" type="button" data-t="crashEraseYes"></button><button id="bCeNo" class="btn" type="button" data-t="cancel"></button></div>
+    </div>
+  </div>
+
+  <div id="cReset" class="card" hidden>
+    <h2 data-t="rstTitle"></h2>
+    <p data-t="rstText"></p>
+    <p class="hint" data-t="rstKeep"></p>
+    <button id="bRst" class="btn" type="button" data-t="rstBtn"></button>
+    <div id="rstConf" class="confirm" hidden>
+      <p data-t="rstQ"></p>
+      <ul class="rstl"><li data-t="rstL1"></li><li data-t="rstL2"></li><li data-t="rstL3"></li><li data-t="rstL4"></li><li data-t="rstL5"></li></ul>
+      <p class="hint" data-t="rstAfter"></p>
+      <label for="rstIn" class="big2" data-t="rstType"></label>
+      <input id="rstIn" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="done">
+      <div class="row2"><button id="bRstYes" class="btn" type="button" data-t="rstYes" disabled></button><button id="bRstNo" class="btn" type="button" data-t="cancel"></button></div>
+    </div>
+    <p id="rstMsg" class="msg" hidden></p>
+  </div>
+
+  <div id="cFills" class="card" hidden>
+    <h2 data-t="fillsTitle"></h2>
+    <p class="hint" data-t="fillsHint"></p>
+    <p id="fillsLoad" class="hint" data-t="fillsLoading" hidden></p>
+    <p id="fillsNone" class="hint" data-t="fillsNone" hidden></p>
+    <ul id="fillsL" class="log"></ul>
+    <p id="fillsMsg" class="hint" hidden></p>
+    <button id="bFillsAll" class="btn mt" type="button" hidden></button>
+    <p id="fillsAllMsg" class="msg" hidden></p>
+  </div>
+
+  <div class="card">
+    <h2 data-t="rsTitle"></h2>
+    <p class="hint" data-t="rsText"></p>
+    <button id="bRs" class="btn" type="button" data-t="rsBtn"></button>
+    <div id="rsConf" class="confirm" hidden>
+      <p data-t="rsQ"></p>
+      <div class="row2"><button id="bRsYes" class="btn" type="button" data-t="rsYes"></button><button id="bRsNo" class="btn" type="button" data-t="cancel"></button></div>
+    </div>
+    <p id="rsMsg" class="msg bad" hidden></p>
+  </div>
+
+  <button id="bFinish2" class="btn fin big" type="button" data-t="finish"></button>
+</section>
+
+<section id="pFw" hidden>
+  <button id="bFwBack" class="lnk" type="button" data-go="maint" data-t="back"></button>
+  <h1 data-t="fwTitle"></h1>
+  <div id="fwPick" class="card">
+    <p id="fwNow2" class="hint"></p>
+    <label id="fwPickL" class="btn file"><span data-t="fwChoose"></span><input id="fwFile" type="file"></label>
+    <p id="fwSummary" class="big2 mt" hidden></p>
+    <dl id="fwDl" class="dl mt" hidden></dl>
+    <p id="fwErr" class="msg bad" hidden></p>
+    <p id="fwWarn" class="msg warn" hidden></p>
+    <button id="bFwGo" class="btn pri big mt" type="button" hidden></button>
+  </div>
+  <div id="fwProg" class="card prog" hidden>
+    <p id="fwPhase" class="big2" role="status"></p>
+    <div id="fwBarBox" class="bar"><i id="fwBar"></i></div>
+    <div class="stats"><span id="fwBytes"></span><span id="fwSpeed"></span></div>
+    <p id="fwEta" class="eta"></p>
+    <p class="hint" data-t="fwKeep"></p>
+    <button id="bFwCancel" class="btn" type="button" data-t="fwCancel"></button>
+  </div>
+  <div id="fwRes" class="card waitc" hidden>
+    <h1 id="fwResT"></h1>
+    <p id="fwResText"></p>
+    <button id="bFwAgain" class="btn pri big mt" type="button" data-t="fwChoose"></button>
+    <button id="bFwHome" class="btn mt" type="button" data-go="" data-t="backHome"></button>
+  </div>
+</section>
+
+<section id="pRegs" hidden>
+  <button class="lnk" type="button" data-go="" data-t="back"></button>
+  <h1 data-t="rgTitle"></h1>
+  <p class="hint" data-t="rgIntro"></p>
+  <p id="rgLive" class="live" role="status"></p>
+  <div id="rgBox" class="card">
+    <div class="rgwrap"><table class="rgtbl">
+      <thead><tr><th data-t="rgName"></th><th data-t="rgRaw"></th><th data-t="rgValue"></th></tr></thead>
+      <tbody id="rgBody"></tbody>
+    </table></div>
+    <p class="hint" data-t="rgReceiverHint"></p>
+  </div>
+  <div class="card">
+    <h2 data-t="lrTitle"></h2>
+    <p class="hint" data-t="lrHelp"></p>
+    <p id="lrState" class="big2"></p>
+    <button id="bLr" class="btn pri" type="button"></button>
+    <p id="lrRadio" class="figs"></p>
+    <p id="lrNote" class="msg" hidden></p>
+    <p id="lrErr" class="msg bad" hidden></p>
+    <p class="hint" data-t="lrSlow"></p>
+  </div>
+</section>
+
+<section id="pLogs" hidden>
+  <button class="lnk" type="button" data-go="" data-t="back"></button>
+  <h1 data-t="lgTitle"></h1>
+  <p class="hint" data-t="lgIntro"></p>
+  <label class="chk"><input id="lgDebug" type="checkbox"><span data-t="lgDebugLines"></span></label>
+  <div class="row3"><button id="bLgPause" class="btn" type="button"></button><button id="bLgClear" class="btn" type="button" data-t="lgClear"></button><button id="bLgCopy" class="btn" type="button" data-t="lgCopy"></button></div>
+  <p id="lgInfo" class="hint" role="status"></p>
+  <pre id="lgOut" class="logout" tabindex="0"></pre>
+</section>
+
+<section id="pWait" hidden>
+  <div id="wCard" class="card waitc">
+    <div id="spin" class="spin"></div>
+    <h1 id="wTitle"></h1>
+    <p id="wText"></p>
+    <p id="wSub" class="hint"></p>
+    <button id="bWaitHome" class="btn pri big mt" type="button" data-t="backHome" hidden></button>
+    <button id="bWaitConnect" class="btn mt" type="button" data-t="backToConnect" hidden></button>
+  </div>
+</section>
+
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>
