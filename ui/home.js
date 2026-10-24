@@ -1,6 +1,6 @@
 // The dashboard: level, litres, percentage, status, totals, Bluetooth line, device details, Raw ADC Value table.
 import {
-  STR, t, fin, fmtLitres, fmtMm, fmtPct, fmtLpmm, fmtNum, fmtDuration, fmtAgo, levelOf, litresOf, capacityOf, fillPctOf, rawAdcOf,
+  STR, t, fin, fmtLitres, fmtMm, fmtPct, fmtLpmm, fmtNum, fmtDuration, fmtAgo, levelOf, litresOf, capacityOf, fillPctOf, clampPct, rawAdcOf,
   rawAdcFromLitres, RAW_ADC_MAX, statusView, fuelView, healthFlags, buildText, tankText, lpmmOf, siteLocText, linkSummary,
 } from '../core.js';
 import { $, rows } from './dom.js';
@@ -50,7 +50,7 @@ export function initHome(ctx) {
     $('note').hidden = !v.note;
     $('lit').textContent = fmtLitres(litresOf(st));
     $('mm').textContent = fmtMm(levelOf(st));
-    $('barI').style.width = Math.max(0, Math.min(100, p)) + '%';
+    $('barI').style.width = clampPct(p) + '%';
     $('bar').setAttribute('aria-valuenow', String(Math.round(p)));
     $('pct').textContent = fmtPct(p) + ' %';
     $('cap').textContent = t('ofCap', { c: fmtLitres(capacityOf(st)) });

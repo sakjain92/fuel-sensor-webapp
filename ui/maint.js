@@ -1,6 +1,6 @@
 // The Maintenance screen (behind the login): tank size, site ID and location, firmware, crash report, reset, fill reports, restart.
 import {
-  STR, t, fin, fmtWait, fmtLpmm, fmtLitres, numStr, tankText, grantText, buildText, validateTank, siteLocText, fixIsWeak, resetPhraseOk,
+  STR, t, fin, fmtWait, fmtLpmm, fmtLitres, numStr, tankText, grantText, buildText, validateTank, parseCapacity, fmtNum, CAP_DEFAULT, siteLocText, fixIsWeak, resetPhraseOk,
   fillWhen, fillL, fillFlagNames, fillShareText, errText, clockDiffText, clockSrcText,
 } from '../core.js';
 import { makeReportFile, deliverFile, downloadBlob } from '../export.js';
@@ -8,7 +8,7 @@ import { $, msg, busy, confirmBox, copyTxt } from './dom.js';
 
 export function initMaint(ctx) {
   const { maint, app } = ctx;
-  let tankDirty = false;
+  let tankDirty = false, capDirty = false;
   let fix = null;                       // the position found for the site location
   let fills = null;
   let allFile = null;
@@ -28,6 +28,12 @@ export function initMaint(ctx) {
     const g = maint.grant, st = app.status || {}, ms = maint.state || {}, tk = ms.tank || st.tank;
     $('grantInfo').textContent = grantText(g);
     $('cTank').hidden = !g.settings;
+    const hasCap = !!tk && fin(tk.cap_l);                       // a sensor from before the capacity setting has no such card
+    $('cCap').hidden = !g.settings || !hasCap;
+    if (hasCap) {
+      $('capNow').textContent = t('capNow', { c: fmtNum(tk.cap_l, 1) });
+      if (!capDirty) { $('capIn').value = numStr(tk.cap_l); capInput(false); }
+    }
     $('cSite').hidden = !g.settings;
     $('cClock').hidden = !g.settings;
     $('cReset').hidden = !g.settings;
@@ -77,6 +83,25 @@ export function initMaint(ctx) {
     renderClock();
   }
 
+  // ---- tank capacity
+  function capInput(showErr) {
+    const v = parseCapacity($('capIn').value);
+    const bad = !v.ok && (showErr || v.err !== 'empty');
+    $('capIn').setAttribute('aria-invalid', bad ? 'true' : 'false');
+    msg('capErr', bad ? STR['capErr_' + v.err] : '', 'bad');
+    return v;
+  }
+  async function capSave(useDefault) {
+    $('capMsg').hidden = true;
+    if (useDefault) $('capIn').value = String(CAP_DEFAULT);
+    if (!capInput(true).ok) return;
+    const btn = $('bCapSave');
+    busy(btn, true, STR.saving);
+    const r = await maint.saveCapacity($('capIn').value);
+    busy(btn, false);
+    if (r.ok) { capDirty = false; msg('capMsg', STR.capSaved, 'ok'); await load(); } else if (!r.ended) msg('capMsg', t('tankFail', { e: r.text }), 'bad');
+  }
+
   // ---- tank
   function tankInput(showErr) {
     const v = validateTank($('tL').value, $('tW').value, $('tH').value), errs = [];
@@ -86,7 +111,7 @@ export function initMaint(ctx) {
       if (bad) errs.push(t('dimErr', { f: STR['dim_' + k], m: STR['dimE_' + v[k].err] }));
     }
     msg('tankErr', errs.join('. '), 'bad');
-    $('tankPrev').textContent = v.cap ? t('tankPrevCap', { p: fmtLpmm(v.lpmm), c: fmtLitres(v.cap) }) : v.lpmm ? t('tankPrev', { p: fmtLpmm(v.lpmm) }) : '';
+    $('tankPrev').textContent = v.cap ? t('tankPrev', { p: fmtLpmm(v.lpmm) }) : v.lpmm ? t('tankPrev', { p: fmtLpmm(v.lpmm) }) : '';
     return v;
   }
   async function tankSave(useDefault) {
@@ -172,7 +197,7 @@ export function initMaint(ctx) {
     busy(btn, true, STR.saving);
     const r = await maint.resetDefaults($('rstIn').value);
     busy(btn, false);
-    if (r.ok) { tankDirty = false; closeReset(); ctx.startWait('reset', { delay: r.restartInS }); } else if (!r.ended) msg('rstMsg', t('rstFail', { e: r.text || '' }), 'bad');
+    if (r.ok) { tankDirty = false; capDirty = false; closeReset(); ctx.startWait('reset', { delay: r.restartInS }); } else if (!r.ended) msg('rstMsg', t('rstFail', { e: r.text || '' }), 'bad');
   }
   async function restartDevice() {
     $('rsMsg').hidden = true;
@@ -233,6 +258,9 @@ export function initMaint(ctx) {
 
   // ---- wiring
   for (const id of ['tL', 'tW', 'tH']) $(id).addEventListener('input', () => { tankDirty = true; $('tankMsg').hidden = true; tankInput(false); });
+  $('capIn').addEventListener('input', () => { capDirty = true; $('capMsg').hidden = true; capInput(false); });
+  $('bCapSave').addEventListener('click', () => capSave(false));
+  $('bCapDef').addEventListener('click', () => { capDirty = false; capSave(true); });
   $('bTankSave').addEventListener('click', () => tankSave(false));
   confirmBox($('bTankDef'), $('defConf'), $('bDefYes'), $('bDefNo'), () => { tankDirty = false; tankSave(true); });
   confirmBox($('bClkSet'), $('clkConf'), $('bClkYes'), $('bClkNo'), clockSet);
@@ -256,7 +284,7 @@ export function initMaint(ctx) {
 
   return {
     enter() {
-      for (const id of ['mErr', 'tankMsg', 'siteMsg', 'siteErr', 'locMsg', 'crashMsg', 'rsMsg', 'rstMsg', 'fillsAllMsg', 'clkErr', 'clkMsg', 'clkConf']) $(id).hidden = true;
+      for (const id of ['mErr', 'capMsg', 'capErr', 'tankMsg', 'siteMsg', 'siteErr', 'locMsg', 'crashMsg', 'rsMsg', 'rstMsg', 'fillsAllMsg', 'clkErr', 'clkMsg', 'clkConf']) $(id).hidden = true;
       fix = null;
       clk = null;                                                  // never show the clock of the sensor visited before
       $('siteIn').value = (app.status && app.status.site_id) || '';

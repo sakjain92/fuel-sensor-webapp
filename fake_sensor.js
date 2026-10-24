@@ -79,7 +79,7 @@ export class FakeSensor {
     this.s = {
       fw: o.fw || '2.0.0',
       boots: 12, powerInterruptions: 9, changes: 2,
-      tank: { l_mm: 1755, w_mm: 790, h_mm: 190, custom: false },
+      tank: { l_mm: 1755, w_mm: 790, h_mm: 190, custom: false, cap_l: 240 },
       level_mm: o.level_mm === undefined ? 123.45 : o.level_mm,
       site_id: o.site_id === undefined ? 'BLR-0042' : o.site_id,
       site_lat: o.site_lat === undefined ? 12.971599 : o.site_lat,
@@ -266,20 +266,21 @@ export class FakeSensor {
   // ------------------------------------------------------------------ views
   _lpmm() { return this.s.tank.l_mm * this.s.tank.w_mm / 1e6; }
   _litres() { return this.s.level_mm * this._lpmm(); }
-  _capacity() { return this.s.tank.h_mm * this._lpmm(); }
+  _capacity() { return this.s.tank.cap_l; }
+  _pct() { return Math.max(0, Math.min(100, 100 * this._litres() / this._capacity())); }
   _statusWord() {
     if (this.s.fuel.active === 'fill' || this.s.fuel.active === 'drain') return 'moving';
     return 'steady';
   }
   _tank() {
     const t = this.s.tank;
-    return { l_mm: r1(t.l_mm), w_mm: r1(t.w_mm), h_mm: r1(t.h_mm), lpmm: r5(this._lpmm()), custom: t.custom };
+    return { l_mm: r1(t.l_mm), w_mm: r1(t.w_mm), h_mm: r1(t.h_mm), lpmm: r5(this._lpmm()), custom: t.custom, cap_l: r1(t.cap_l) };
   }
   statusObject() {
     const s = this.s, lit = this._litres(), cap = this._capacity();
     const o = {
       fw: s.fw, variant: this.variant, chip: this.chip, mac: this.mac,
-      level_mm: r2(s.level_mm), litres: r2(lit), capacity_l: r1(cap), fill_pct: r1(100 * lit / cap),
+      level_mm: r2(s.level_mm), litres: r2(lit), capacity_l: r1(cap), fill_pct: r1(this._pct()),
       raw_adc: clamp(Math.round(lit * 4095 / cap), 0, 4095),
       source: 'estimate', status: this._statusWord(), age_s: 0.3, temp_c: 38,
       uptime_s: this.uptimeS(), boots: s.boots, power_interruptions: s.powerInterruptions, changes: s.changes,
@@ -296,7 +297,7 @@ export class FakeSensor {
     return { mode: l.mode, phy: l.phy, rssi: this.rssi, pending: l.pending, mtu: this.mtu };
   }
   regsWords() {
-    const s = this.s, w = new Array(37).fill(0), lit = this._litres(), cap = this._capacity();
+    const s = this.s, w = new Array(38).fill(0), lit = this._litres(), cap = this._capacity();
     const u32 = (i, v) => { v = Math.max(0, Math.min(0xfffffffe, Math.round(v))); w[i] = (v >>> 16) & 0xffff; w[i + 1] = v & 0xffff; };
     const s32 = (i, v) => { const x = v | 0; w[i] = (x >>> 16) & 0xffff; w[i + 1] = x & 0xffff; };
     w[0] = clamp(Math.round(lit * 4095 / cap), 0, 4095);
@@ -318,9 +319,10 @@ export class FakeSensor {
     const [ma, mi, pa] = s.fw.split('.').map(Number);
     w[35] = ma * 2048 + mi * 32 + pa;
     w[36] = 0;
+    w[37] = Math.round(this._pct() * 10);
     return w;
   }
-  regsEvent() { return { ev: 'regs', map: 1, seq: this._regsSeq++ & 0xffff, first: 40001, count: 37, words: this.regsWords() }; }
+  regsEvent() { return { ev: 'regs', map: 1, seq: this._regsSeq++ & 0xffff, first: 40001, count: 38, words: this.regsWords() }; }
 
   // ------------------------------------------------------------------ the periodic work (one tick = statusMs)
   _tick() {
@@ -361,7 +363,7 @@ export class FakeSensor {
 
   // ------------------------------------------------------------------ commands: general and login
   cmd_hello() { return { proto: 1, fw: this.s.fw, variant: this.variant, chip: this.chip, mac: this.mac, caps: this._caps(), min_app: 1 }; }
-  _caps() { return ['status', 'fill', 'maint', 'ota', 'link', 'regs', 'clock'].concat(this.chip === 'esp32c3' ? ['range'] : [], this.variant === 'debug' ? ['logs', 'raw'] : []); }
+  _caps() { return ['status', 'fill', 'maint', 'ota', 'link', 'regs', 'clock', 'capacity'].concat(this.chip === 'esp32c3' ? ['range'] : [], this.variant === 'debug' ? ['logs', 'raw'] : []); }
   cmd_ping() { return {}; }
   cmd_status() { return this.statusObject(); }
   cmd_subscribe(req) {
@@ -418,10 +420,17 @@ export class FakeSensor {
   }
   cmd_maint_tank(req) {
     this._need('settings');
-    if (req.default === true) { this.s.tank = { l_mm: 1755, w_mm: 790, h_mm: 190, custom: false }; this.s.changes++; return this._tankReply(); }
+    if (req.default === true) { this.s.tank = { l_mm: 1755, w_mm: 790, h_mm: 190, custom: false, cap_l: this.s.tank.cap_l }; this.s.changes++; return this._tankReply(); }
     const ok = (v) => typeof v === 'number' && v >= 10 && v <= 10000;
-    if (!ok(req.l_mm) || !ok(req.w_mm) || !ok(req.h_mm)) throw new Err('bad_input', 'l_mm, w_mm, h_mm must be 10 to 10000');
-    this.s.tank = { l_mm: req.l_mm, w_mm: req.w_mm, h_mm: req.h_mm, custom: true };
+    const hasDim = ['l_mm', 'w_mm', 'h_mm'].some((k) => req[k] !== undefined), hasCap = req.cap_l !== undefined;
+    if (hasDim || !hasCap) {
+      if (!ok(req.l_mm) || !ok(req.w_mm) || !ok(req.h_mm)) throw new Err('bad_input', 'l_mm, w_mm, h_mm must be 10 to 10000');
+      Object.assign(this.s.tank, { l_mm: req.l_mm, w_mm: req.w_mm, h_mm: req.h_mm, custom: true });
+    }
+    if (hasCap) {
+      if (!(typeof req.cap_l === 'number' && req.cap_l >= 10 && req.cap_l <= 5000)) throw new Err('bad_input', 'cap_l must be 10 to 5000');
+      this.s.tank.cap_l = Math.round(req.cap_l * 10) / 10;
+    }
     this.s.changes++;
     return this._tankReply();
   }
@@ -489,7 +498,7 @@ export class FakeSensor {
     const s = this.s;
     if (!this.rtc) s.clockOffsetMs = null;                       // without a clock chip the time set by a phone is lost at a restart
     if (reset) {
-      s.tank = { l_mm: 1755, w_mm: 790, h_mm: 190, custom: false };
+      s.tank = { l_mm: 1755, w_mm: 790, h_mm: 190, custom: false, cap_l: 240 };
       s.fuel = { filled_l: 0, drained_l: 0, fills: 0, drains: 0, active: 'none', pending_l: 0 };
       s.reports = []; s.sinceReset = 0; s.changes++;
       s.site_id = null; s.site_lat = null; s.site_lon = null;               // the site ID and location are cleared too (items = 61)

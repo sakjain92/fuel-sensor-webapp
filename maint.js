@@ -3,7 +3,7 @@
 // without a command that needs it, when its hours run out, and at a restart.
 import { Emitter, realClock, base64Decode, concatBytes } from './util.js';
 import {
-  phoneClock, respCheck, respNorm, loginErrorKey, validateTank, validateSiteId, validLatLon, round6, resetPhraseOk, errText, clockInfo,
+  phoneClock, respCheck, respNorm, loginErrorKey, validateTank, parseCapacity, validateSiteId, validLatLon, round6, resetPhraseOk, errText, clockInfo,
 } from './core.js';
 import { ProtocolError, DisconnectedError } from './ble.js';
 import { loadFillLog } from './fill.js';
@@ -104,6 +104,11 @@ export class Maintenance extends Emitter {
     const v = validateTank(l, w, h);
     if (!v.ok) return { ok: false, err: 'input', v };
     return this._act(async () => ({ tank: (await this._call('maint_tank', { l_mm: v.l.v, w_mm: v.w.v, h_mm: v.h.v })).tank }));
+  }
+  async saveCapacity(text) {
+    const v = parseCapacity(text);
+    if (!v.ok) return { ok: false, err: 'input', v };
+    return this._act(async () => ({ tank: (await this._call('maint_tank', { cap_l: v.v })).tank }));
   }
   async useDefaultTank() { return this._act(async () => ({ tank: (await this._call('maint_tank', { default: true })).tank })); }
 

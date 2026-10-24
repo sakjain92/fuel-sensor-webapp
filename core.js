@@ -12,7 +12,7 @@ export const STRINGS = {
     ofCap: 'of {c} L',
     rawAdc: 'Raw ADC Value: {v}/{m}',
     rawTable: 'Litres → Raw ADC Value table',
-    rawTableHint: 'A linear 0-{m} scale: 0 is empty, {m} is this tank’s capacity ({c} L). Recalculates if the tank size changes.',
+    rawTableHint: 'A linear 0-{m} scale: 0 is empty, {m} is this tank’s capacity ({c} L). Recalculates if the tank capacity changes.',
     rawTableL: 'Litres',
     rawTableR: 'Raw ADC Value',
     updatedNow: 'Updated just now',
@@ -206,6 +206,14 @@ export const STRINGS = {
     save: 'Save',
     saving: 'Saving…',
     tankSaved: 'Saved. The litres shown now use this tank size.',
+    capTitle: 'Tank capacity',
+    capNow: 'Now: {c} L. The fuel bar, the percentage and the Raw ADC Value use this as a full tank.',
+    capLabel: 'Capacity (litres)',
+    capErr_empty: 'enter the capacity in litres',
+    capErr_num: 'enter a number',
+    capErr_range: 'enter 10 to 5000 litres',
+    capSaved: 'Saved. The fuel bar now uses this capacity.',
+    capDefault: 'Use default (240 L)',
     tankFail: 'Not saved: {e}',
     useDefault: 'Use default (calibrated Eicher tank)',
     defaultQ: 'Go back to the calibrated Eicher tank size?',
@@ -496,6 +504,7 @@ export let STR = STRINGS.en;
 
 export const DEFAULT_LPMM = 1.3863856924996534;
 export const DIM_MIN = 10;
+export const CAP_MIN = 10, CAP_MAX = 5000, CAP_DEFAULT = 240;
 export const DIM_MAX = 10000;
 export const SITE_ID_MAX = 16;
 export const LOC_WARN_M = 50;
@@ -584,12 +593,15 @@ export function lpmmOf(st) { return st && st.tank && fin(st.tank.lpmm) && st.tan
 export function litresOf(st) { return st && fin(st.litres) ? st.litres : levelOf(st) * lpmmOf(st); }
 export function capacityOf(st) {
   if (st && fin(st.capacity_l)) return st.capacity_l;
-  return st && st.tank && fin(st.tank.h_mm) ? st.tank.h_mm * lpmmOf(st) : 0;
+  if (st && st.tank && fin(st.tank.cap_l)) return st.tank.cap_l;
+  return st && st.tank && fin(st.tank.h_mm) ? st.tank.h_mm * lpmmOf(st) : 0;   // a sensor from before the capacity setting
 }
+// The bar and the percentage never leave 0-100 % (more fuel than the capacity shows 100 %, less than none 0 %).
+export function clampPct(p) { return fin(p) ? Math.max(0, Math.min(100, p)) : 0; }
 export function fillPctOf(st) {
-  if (st && fin(st.fill_pct)) return st.fill_pct;
+  if (st && fin(st.fill_pct)) return clampPct(st.fill_pct);
   const c = capacityOf(st);
-  return c > 0 ? 100 * litresOf(st) / c : 0;
+  return c > 0 ? clampPct(100 * litresOf(st) / c) : 0;
 }
 // A customer's downstream register: 0-4095, linear on litres, clamped (same as the 1.2.5 dashboard).
 export const RAW_ADC_MAX = 4095;
@@ -759,6 +771,14 @@ export function parseDim(s) {
   if (!/^(\d{1,6}(\.\d*)?|\.\d+)$/.test(s)) return { ok: false, err: 'num' };
   const v = Math.round(parseFloat(s) * 10) / 10;
   if (!(v >= DIM_MIN && v <= DIM_MAX)) return { ok: false, err: 'range', v };
+  return { ok: true, v };
+}
+export function parseCapacity(s) {
+  s = String(s == null ? '' : s).trim().replace(',', '.');
+  if (!s) return { ok: false, err: 'empty' };
+  if (!/^(\d{1,5}(\.\d*)?|\.\d+)$/.test(s)) return { ok: false, err: 'num' };
+  const v = Math.round(parseFloat(s) * 10) / 10;
+  if (!(v >= CAP_MIN && v <= CAP_MAX)) return { ok: false, err: 'range', v };
   return { ok: true, v };
 }
 export function validateTank(l, w, h) {
@@ -941,7 +961,7 @@ export function fillErrText(e) {
 }
 
 // Does the sensor offer a feature (PROTOCOL.md 12 `hello.caps`)? A hello without `caps` is an older firmware: the 2.0.0 set.
-export const DEFAULT_CAPS = ['status', 'fill', 'maint', 'ota', 'link', 'regs', 'clock'];
+export const DEFAULT_CAPS = ['status', 'fill', 'maint', 'ota', 'link', 'regs', 'clock'];   // 'capacity' came later: older sensors lack it
 export function hasCap(hello, word) {
   const caps = hello && Array.isArray(hello.caps) ? hello.caps : DEFAULT_CAPS;
   return caps.indexOf(word) >= 0;
