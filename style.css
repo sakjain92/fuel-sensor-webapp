@@ -152,3 +152,7 @@ input[type=text],input:not([type]),input[inputmode]{min-height:52px;font-size:20
 .logout .W{color:#a86a00;font-weight:700}
 .logout .D{color:var(--mut)}
 @media (prefers-reduced-motion:reduce){.spin{animation-duration:4s}.bar i{transition:none}}
+#cnFail{margin-top:14px;line-height:1.45;text-align:left}
+#cnFail p{margin:0 0 8px}
+#cnFail ul{margin:0 0 10px;padding-left:1.4em}
+#cnFail li{margin:0 0 4px}
