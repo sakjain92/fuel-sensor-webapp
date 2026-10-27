@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta name="robots" content="noindex, nofollow">
+<style>#repKeyBox{display:none!important}</style>
 <style id="demoGateHide">body>*:not(#demoGate){display:none!important}
 #demoGate{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#eaeef1;font-family:system-ui,sans-serif;z-index:99999}
 #demoGate form{background:#fff;border:1px solid #c5ccd3;border-radius:12px;padding:24px;width:min(340px,90vw);box-sizing:border-box}
@@ -205,7 +206,7 @@ footer { color: var(--muted); font-size: 0.85rem; padding: 8px 0 32px; }
 </style>
 </head>
 <body>
-<div id="demoGate"><form id="demoGateForm"><h1>IT page (demo)</h1><p>Enter the password to continue.</p>
+<div id="demoGate"><form id="demoGateForm"><h1>IT page</h1><p>Enter the password to continue.</p>
 <input id="demoGatePw" type="password" autocomplete="off" autofocus aria-label="Password"><button type="submit">Open</button>
 <p class="e" id="demoGateErr" role="alert"></p></form></div>
 <script>(function(){var PW="demo";var f=document.getElementById('demoGateForm'),i=document.getElementById('demoGatePw'),e=document.getElementById('demoGateErr');
