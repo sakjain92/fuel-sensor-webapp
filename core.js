@@ -258,7 +258,7 @@ export const STRINGS = {
     clkNotSet: 'Not set',
     clkSrc: 'Source: {s}.',
     clkSrc_rtc: 'the sensor’s own clock chip',
-    clkSrc_phone: 'set from a phone (lost when the sensor restarts)',
+    clkSrc_phone: 'set from a phone',
     clkSrc_other: 'another source',
     clkSrc_none: 'none',
     clkSrc_none_rtc: 'none (a clock chip is fitted but holds no time)',
