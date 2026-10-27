@@ -19,8 +19,8 @@ export function initFill(ctx) {
     if (st === 'filling') $('frFillT').textContent = t('frFilling', { t: v.phoneStart > 0 ? fmtClock(v.phoneStart * 1000, ctx.clock.now()) : '?' });
     if (st === 'nolocation') $('frNoLoc').textContent = t('frNoLoc', { why: STR['loc_' + v.locWhy] || STR.loc_unavailable });
     tick();
-    $('frLocLine').hidden = !open;
-    if (open) $('frLocLine').textContent = v.fix ? t('frLocOk', { a: Math.round(v.fix.acc === null ? 0 : v.fix.acc) }) : STR.frLocNone;
+    $('frLocLine').hidden = !(open && !v.fix);                      // only a missing position is worth a line; a saved one is not shown
+    if (open && !v.fix) $('frLocLine').textContent = STR.frLocNone;
     $('frMoved').hidden = !(open && v.movedWarn);
     if (open && v.movedWarn) $('frMoved').textContent = t('frMoved', { m: v.movedM });
     $('frRst').hidden = !(open && v.restarted);

@@ -373,7 +373,6 @@ export const STRINGS = {
     frSkipLoc: 'Continue without location',
     frTryAgain: 'Try again',
     frNoLoc: '{why} You can continue without it. The report then will not include your position.',
-    frLocOk: 'Position saved (±{a} m).',
     frLocNone: 'No position saved.',
     frMoved: 'You are {m} m from where you pressed Start. The report will say that you moved more than 100 m.',
     frf_0: 'sensor restarted',
