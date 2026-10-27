@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta name="robots" content="noindex, nofollow">
-<style>#repKeyBox{display:none!important}</style>
+<style>#repKeyBox,#keyBadge,#repKeyBadge,#repKeyMsg{display:none!important}</style>
 <style id="demoGateHide">body>*:not(#demoGate){display:none!important}
 #demoGate{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#eaeef1;font-family:system-ui,sans-serif;z-index:99999}
 #demoGate form{background:#fff;border:1px solid #c5ccd3;border-radius:12px;padding:24px;width:min(340px,90vw);box-sizing:border-box}
@@ -243,7 +243,6 @@ else{e.textContent='Wrong password.';i.value='';i.focus();}});})();</script>
           <label for="challengeIn">Challenge from the operator (starts with FS-)</label>
           <textarea id="challengeIn" class="code" rows="2" spellcheck="false" autocomplete="off" autocapitalize="characters"
             placeholder="FS-XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-XX"></textarea>
-          <p class="hint">Spaces, dashes and lower case are fine. The letters O, I and L are read as 0, 1 and 1.</p>
         </div>
         <p id="challengeMsg" class="msg" role="status" aria-live="polite"></p>
         <div id="challengeDetails" hidden>
@@ -373,7 +372,7 @@ else{e.textContent='Wrong password.';i.value='';i.focus();}});})();</script>
 
   </main>
 
-  <footer>Fuel Level Sensor Management Application. Single file, works offline.</footer>
+  <footer>Fuel Level Sensor Management Application.</footer>
 </div>
 
 <script>
