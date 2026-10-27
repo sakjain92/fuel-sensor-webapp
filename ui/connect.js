@@ -24,7 +24,6 @@ export function initConnect(ctx) {
     const key = e && e.key;
     $('cnErr').textContent = key && STR[key] ? STR[key] : errText(e);
     $('cnErr').hidden = false;
-    $('cnFail').textContent = STR.cn_busy + ' ' + STR.cn_perm;
     $('cnFail').hidden = HELP_KEYS.indexOf(key) < 0;
     $('bConnect').textContent = STR.cn_again;
   }

@@ -6,7 +6,7 @@
 //
 // A page request (the QR code's address ends in ?d=PROCOM-SENSOR-...) always gets the stored index.html, whatever its query.
 // Nothing here talks to any server except for the app's own files, once, at install.
-const BUILD = 'a1caf22cf683826a';
+const BUILD = 'e1618bdb23e06788';
 const CACHE = 'mrm-fuel-' + BUILD;
 const FILES = [
   'index.html', 'style.css', 'manifest.webmanifest', 'app.js', 'config.js', 'util.js', 'core.js', 'ble.js', 'csv.js', 'reportfile.js',
