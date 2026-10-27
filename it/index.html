@@ -2,6 +2,14 @@
 <html lang="en">
 <head>
 <meta name="robots" content="noindex, nofollow">
+<style id="demoGateHide">body>*:not(#demoGate){display:none!important}
+#demoGate{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#eaeef1;font-family:system-ui,sans-serif;z-index:99999}
+#demoGate form{background:#fff;border:1px solid #c5ccd3;border-radius:12px;padding:24px;width:min(340px,90vw);box-sizing:border-box}
+#demoGate h1{font-size:20px;margin:0 0 6px}#demoGate p{margin:0 0 14px;color:#51606c;font-size:15px}
+#demoGate input{width:100%;box-sizing:border-box;font-size:18px;padding:10px;margin:0 0 10px;border:1px solid #8795a1;border-radius:8px}
+#demoGate button{width:100%;font-size:18px;padding:12px;border:0;border-radius:8px;background:#0a508c;color:#fff;font-weight:600}
+#demoGate .e{color:#b3261e;margin:8px 0 0;min-height:1.2em}</style>
+
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'">
@@ -197,6 +205,13 @@ footer { color: var(--muted); font-size: 0.85rem; padding: 8px 0 32px; }
 </style>
 </head>
 <body>
+<div id="demoGate"><form id="demoGateForm"><h1>IT page (demo)</h1><p>Enter the password to continue.</p>
+<input id="demoGatePw" type="password" autocomplete="off" autofocus aria-label="Password"><button type="submit">Open</button>
+<p class="e" id="demoGateErr" role="alert"></p></form></div>
+<script>(function(){var PW="demo";var f=document.getElementById('demoGateForm'),i=document.getElementById('demoGatePw'),e=document.getElementById('demoGateErr');
+f.addEventListener('submit',function(ev){ev.preventDefault();if(i.value===PW){document.getElementById('demoGateHide').remove();document.getElementById('demoGate').remove();}
+else{e.textContent='Wrong password.';i.value='';i.focus();}});})();</script>
+
 <header class="top">
   <div class="top-inner wrap">
     <div>
@@ -1830,8 +1845,8 @@ const FSCore = (function () {
   const BUILT_IN_KEY_PASSPHRASE = /*BAKE KEY_PASSPHRASE*/"fY_xG153F17yzToHNVal3Eqz"/*END BAKE*/;
   // The same for the REPORT key that opens the encrypted report files (a P-256 key file made by tools/keygen_report.mjs):
   // baked in by tools/bake_key.py --report-key, or chosen by the user on the "Open report file" tab. Both null here.
-  const BUILT_IN_REPORT_KEY_FILE = /*BAKE REPORT_KEY_FILE*/null/*END BAKE*/;
-  const BUILT_IN_REPORT_KEY_PASSPHRASE = /*BAKE REPORT_KEY_PASSPHRASE*/null/*END BAKE*/;
+  const BUILT_IN_REPORT_KEY_FILE = /*BAKE REPORT_KEY_FILE*/{"format": "mrm-fuel-report-key", "version": 1, "kdf": "PBKDF2-SHA256", "iterations": 600000, "salt": "a1f601e8b8d6613179497a296c1d283d", "cipher": "AES-256-GCM", "iv": "0c4c9889f05abe336e794389", "ciphertext": "f537f623fcad7be7efe3be7129bd6fba413eb65b7b66561ec0d36e9cb68af670817411649b4b2ae7b81c27f92666ee69f321e695acdd68b952b73af24ff28fbb0837c967e712fa35f4b6168995c3969d8ff9b4989f813a55c63e43d66b23efefb2688fb4b9d9f3a893d4db27d9972a3c6906eac64e7d22c0634b49aa402c0aa34257cb1328d8f7c4fce19172e84fd0d4dc1491f19979b9f0f322", "public_key": "04ae6af7b0c91d0122af0f9eb7df05d1bf7e3e879f9b060d8a2d55822e925399e79e8ac39d7a09f21fa7c805d9997d97fb7d04c2cce0ef385974a9f82477b66457", "key_id": "dbbf87b6", "created_utc": "2026-10-27T07:38:40Z", "label": "DEMO report key (internal test, baked into the public IT page)"}/*END BAKE*/;
+  const BUILT_IN_REPORT_KEY_PASSPHRASE = /*BAKE REPORT_KEY_PASSPHRASE*/"S8rshHAY0-KaZz1tvD4VU4ie"/*END BAKE*/;
 
   function setMsg(el, text, level) {
     el.textContent = text || '';
