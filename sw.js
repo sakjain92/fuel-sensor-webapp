@@ -42,6 +42,7 @@ async function clean(res) {
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;     // not ours: the browser handles it
+  if (new URL(req.url).pathname.startsWith(new URL('it/', self.registration.scope).pathname)) return;   // /it/ is the separate IT page, not the app
   event.respondWith((async () => {
     const cache = await caches.open(CACHE);
     const hit = await cache.match(req.mode === 'navigate' ? url('index.html') : req);
