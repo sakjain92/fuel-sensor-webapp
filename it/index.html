@@ -1,0 +1,2541 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta name="robots" content="noindex, nofollow">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="Offline tool that signs maintenance responses for MRM fuel sensors.">
+<title>Fuel Sensor Authority</title>
+<link rel="icon" href="data:,">
+<style>
+:root {
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --surface-2: #f0f3f6;
+  --text: #1a1f26;
+  --muted: #5a6573;
+  --border: #d5dbe2;
+  --accent: #1d5ca8;
+  --accent-hover: #174b8a;
+  --accent-text: #ffffff;
+  --ok: #17703a;
+  --ok-bg: #e6f3ea;
+  --warn: #8a5300;
+  --warn-bg: #fff3d6;
+  --bad: #b3261e;
+  --bad-bg: #fbe9e7;
+  --focus: #1d5ca8;
+  --radius: 8px;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12161b;
+    --surface: #1a1f26;
+    --surface-2: #222933;
+    --text: #e4e8ed;
+    --muted: #9ba6b3;
+    --border: #333b46;
+    --accent: #6ea8f0;
+    --accent-hover: #8dbbf4;
+    --accent-text: #0b1522;
+    --ok: #6cc98a;
+    --ok-bg: #16301f;
+    --warn: #f2b955;
+    --warn-bg: #352812;
+    --bad: #ff8f85;
+    --bad-bg: #3a1a17;
+    --focus: #8dbbf4;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", Arial, sans-serif;
+}
+.wrap { max-width: 880px; margin: 0 auto; padding: 0 16px; }
+header.top { background: var(--surface); border-bottom: 1px solid var(--border); }
+.top-inner { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; padding: 14px 16px; }
+h1 { font-size: 1.25rem; margin: 0; letter-spacing: 0.01em; }
+.sub { margin: 2px 0 0; color: var(--muted); font-size: 0.9rem; }
+.badge {
+  font-size: 0.85rem; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--surface-2); color: var(--muted); max-width: 100%; overflow-wrap: anywhere;
+}
+.badge.on { background: var(--ok-bg); color: var(--ok); border-color: transparent; }
+.badge.bad { background: var(--bad-bg); color: var(--bad); border-color: transparent; }
+.badges { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; }
+.tabs { display: flex; gap: 4px; margin: 16px 0 0; border-bottom: 1px solid var(--border); overflow-x: auto; }
+.tabs button {
+  appearance: none; background: none; border: 0; border-bottom: 3px solid transparent; color: var(--muted);
+  font: inherit; font-weight: 600; padding: 10px 14px; cursor: pointer; white-space: nowrap; margin-bottom: -1px;
+}
+.tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+.tabs button:hover { color: var(--text); }
+main { padding: 16px 0 8px; }
+.card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 16px 18px; margin: 0 0 16px;
+}
+.card > h2 { font-size: 1.05rem; margin: 0 0 10px; }
+.card > h2 .step {
+  display: inline-block; min-width: 1.6em; height: 1.6em; line-height: 1.6em; text-align: center; border-radius: 50%;
+  background: var(--accent); color: var(--accent-text); font-size: 0.85rem; margin-right: 8px;
+}
+h3 { font-size: 1rem; margin: 18px 0 6px; }
+p { margin: 0 0 10px; }
+.muted { color: var(--muted); }
+.small { font-size: 0.88rem; }
+label { font-weight: 600; display: block; margin: 0 0 4px; }
+.field { margin: 0 0 12px; }
+.hint { color: var(--muted); font-size: 0.88rem; margin-top: 4px; }
+input[type="text"], input[type="password"], textarea, select {
+  width: 100%; font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; padding: 8px 10px;
+}
+textarea { resize: vertical; min-height: 3.2em; }
+textarea.code, input.code { font-family: var(--mono); font-size: 0.95rem; letter-spacing: 0.02em; }
+input[type="file"] { font: inherit; max-width: 100%; }
+select { width: auto; min-width: 10em; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.row > input[type="password"], .row > input[type="text"] { flex: 1 1 220px; width: auto; }
+button.btn {
+  font: inherit; font-weight: 600; border-radius: 6px; padding: 8px 14px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
+}
+button.btn:hover:not(:disabled) { border-color: var(--accent); }
+button.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+button.btn.primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+button.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+fieldset { border: 0; padding: 0; margin: 0 0 12px; }
+legend { font-weight: 600; padding: 0; margin: 0 0 6px; }
+.check { display: flex; gap: 10px; align-items: flex-start; font-weight: 400; margin: 0 0 8px; }
+.check input { margin-top: 0.3em; width: 1.05em; height: 1.05em; flex: none; }
+.check.indent { margin-left: 1.9em; }
+.check.disabled { color: var(--muted); }
+.msg { margin: 8px 0 0; padding: 8px 12px; border-radius: 6px; font-size: 0.95rem; }
+.msg:empty { display: none; }
+.msg.ok { background: var(--ok-bg); color: var(--ok); }
+.msg.warn { background: var(--warn-bg); color: var(--warn); }
+.msg.bad { background: var(--bad-bg); color: var(--bad); }
+.msg.info { background: var(--surface-2); color: var(--text); }
+.banner { margin: 16px 0 0; padding: 12px 16px; border-radius: var(--radius); }
+.banner.bad { background: var(--bad-bg); color: var(--bad); border: 1px solid currentColor; }
+.banner.ok { background: var(--ok-bg); color: var(--ok); border: 1px solid currentColor; }
+.banner.warn { background: var(--warn-bg); color: var(--warn); border: 1px solid currentColor; }
+.banner.warn h2 { font-size: 1.15rem; }
+.banner ul { margin: 4px 0 0; color: var(--text); }
+.banner.ok h2, .banner.bad h2 { font-size: 1.15rem; }
+.banner h2 { font-size: 1rem; margin: 0 0 4px; }
+.banner p { margin: 0 0 4px; color: var(--text); }
+dl.facts { display: grid; grid-template-columns: minmax(12em, 34%) 1fr; margin: 12px 0 0; border-top: 1px solid var(--border); }
+dl.facts dt, dl.facts dd { margin: 0; padding: 8px 4px; border-bottom: 1px solid var(--border); }
+dl.facts dt { color: var(--muted); font-weight: 600; }
+dl.facts dd .note { display: block; color: var(--muted); font-size: 0.88rem; }
+dl.facts dd.warn { background: var(--warn-bg); }
+dl.facts dd.warn .value { color: var(--warn); font-weight: 700; }
+dl.facts dd.bad { background: var(--bad-bg); }
+dl.facts dd.bad .value { color: var(--bad); font-weight: 700; }
+dl.facts dd a.maplink { display: block; overflow-wrap: anywhere; font-size: 0.88rem; }
+.drop { border: 2px dashed var(--border); border-radius: var(--radius); padding: 12px 14px; margin: 0 0 14px; }
+.drop.over { border-color: var(--accent); background: var(--surface-2); }
+.tablewrap { overflow-x: auto; margin: 12px 0; }
+table.sum { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
+table.sum th, table.sum td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+table.sum th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+table.sum td.ok { color: var(--ok); }
+table.sum td.warn { color: var(--warn); font-weight: 600; }
+table.sum td.bad { color: var(--bad); font-weight: 700; }
+table.sum td.num { text-align: right; white-space: nowrap; }
+table.sum a { color: var(--accent); }
+.report > h3 { margin: 0 0 4px; font-size: 1.05rem; }
+.report .banner { margin-top: 8px; }
+.notice { margin: 6px 0 0; }
+.mono { font-family: var(--mono); }
+.response-out {
+  display: block; font-family: var(--mono); font-size: 1.05rem; line-height: 1.7; padding: 12px 14px; margin: 8px 0;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; overflow-wrap: anywhere;
+  user-select: all; -webkit-user-select: all;
+}
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 8px 0; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; overflow-wrap: anywhere; }
+ul, ol { margin: 0 0 10px; padding-left: 1.3em; }
+li { margin: 0 0 4px; }
+details { margin: 10px 0 0; }
+summary { cursor: pointer; font-weight: 600; }
+footer { color: var(--muted); font-size: 0.85rem; padding: 8px 0 32px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (max-width: 600px) {
+  .tabs { gap: 2px; }
+  .tabs button { padding: 10px 6px; font-size: 0.9rem; }
+  .card { padding: 14px; }
+  dl.facts { grid-template-columns: 1fr; }
+  dl.facts dt { border-bottom: 0; padding-bottom: 0; }
+  .kv { grid-template-columns: 1fr; }
+  .kv dt { margin-top: 6px; }
+  .response-out { font-size: 0.98rem; }
+}
+@media print {
+  :root { --bg: #fff; --surface: #fff; --surface-2: #fff; --text: #000; --muted: #333; --border: #999; --ok: #000; --ok-bg: #fff;
+    --warn: #000; --warn-bg: #fff; --bad: #000; --bad-bg: #fff; --accent: #000; }
+  .tabs, button, input, textarea, select, .badges, .noprint, footer, #support { display: none !important; }
+  body { background: #fff; color: #000; font-size: 11pt; }
+  .card { border: 0; padding: 0 0 8px; break-inside: auto; }
+  .report { break-inside: avoid; border-top: 1px solid #999; padding-top: 8px; }
+  .banner { border: 1px solid #000; }
+  a.maplink { color: #000; text-decoration: none; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-inner wrap">
+    <div>
+      <h1>Fuel Level Sensor Management Application</h1>
+    </div>
+    <div class="badges">
+      <div id="keyBadge" class="badge" role="status" aria-live="polite">Loading key…</div>
+      <div id="repKeyBadge" class="badge" role="status" aria-live="polite">Report key: loading…</div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div id="support" class="banner bad" role="alert" hidden></div>
+
+  <div class="tabs" role="tablist" aria-label="Sections">
+    <button type="button" role="tab" id="tab-respond" aria-controls="panel-respond" aria-selected="true">Respond</button>
+    <button type="button" role="tab" id="tab-fill" aria-controls="panel-fill" aria-selected="false" tabindex="-1">Verify fill report</button>
+    <button type="button" role="tab" id="tab-reports" aria-controls="panel-reports" aria-selected="false" tabindex="-1">Open report file</button>
+  </div>
+
+  <main>
+    <!-- ================================================================ RESPOND -->
+    <section role="tabpanel" id="panel-respond" aria-labelledby="tab-respond" tabindex="0">
+      <div class="card">
+        <h2><span class="step" aria-hidden="true">1</span>Paste the challenge</h2>
+        <div class="field">
+          <label for="challengeIn">Challenge from the operator (starts with FS-)</label>
+          <textarea id="challengeIn" class="code" rows="2" spellcheck="false" autocomplete="off" autocapitalize="characters"
+            placeholder="FS-XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-XX"></textarea>
+          <p class="hint">Spaces, dashes and lower case are fine. The letters O, I and L are read as 0, 1 and 1.</p>
+        </div>
+        <p id="challengeMsg" class="msg" role="status" aria-live="polite"></p>
+        <div id="challengeDetails" hidden>
+          <h3>What the device reports</h3>
+          <dl class="facts" id="facts"></dl>
+          <p class="hint">Times come from the operator's phone, not from a trusted clock. They are shown in IST (UTC+5:30).</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2><span class="step" aria-hidden="true">2</span>Choose what to allow</h2>
+        <fieldset id="maintScope">
+          <legend>The operator may</legend>
+          <label class="check"><input type="checkbox" id="gSettings" checked> Change tank settings</label>
+          <label class="check"><input type="checkbox" id="gFirmware" checked> Update the firmware</label>
+          <label class="check indent"><input type="checkbox" id="gOlder"> Allow installing an older firmware version (downgrade)</label>
+        </fieldset>
+        <div class="field">
+          <label for="gHours">Session length</label>
+          <select id="gHours"></select>
+          <p class="hint">The session also ends after 15 minutes without activity, on logout, or when the sensor restarts.</p>
+        </div>
+        <p id="grantMsg" class="msg" role="status" aria-live="polite"></p>
+      </div>
+
+      <div class="card">
+        <h2><span class="step" aria-hidden="true">3</span>Generate the response</h2>
+        <button type="button" class="btn primary" id="generateBtn" disabled>Generate response</button>
+        <p id="generateMsg" class="msg" role="status" aria-live="polite"></p>
+        <div id="responseBox" hidden>
+          <p class="small muted" id="responseFor"></p>
+          <label for="responseOut">Response for the operator</label>
+          <output id="responseOut" class="response-out" for="challengeIn"></output>
+          <div class="row">
+            <button type="button" class="btn primary" id="copyResponse">Copy response</button>
+            <span id="copyMsg" class="small" role="status" aria-live="polite"></span>
+          </div>
+          <p class="hint">It works only on this device and only for this challenge. If the operator asks the sensor for a new challenge, generate a new response.</p>
+          <details>
+            <summary>Save a record (optional)</summary>
+            <p class="small muted">Downloads one line of JSON with the time, the challenge, what was allowed and the response. This page has no server, so keep these files yourself if you need an audit trail.</p>
+            <div class="field">
+              <label for="recordNote">Note (ticket number, operator, reason)</label>
+              <input type="text" id="recordNote" autocomplete="off">
+            </div>
+            <button type="button" class="btn" id="saveRecord">Save record</button>
+            <span id="recordMsg" class="small" role="status" aria-live="polite"></span>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================ VERIFY FILL REPORT -->
+    <section role="tabpanel" id="panel-fill" aria-labelledby="tab-fill" tabindex="0" hidden>
+      <div class="card">
+        <h2>Verify a fill report</h2>
+        <p class="hint">Paste the report the operator sent: the whole WhatsApp message or only the code (FR-...).</p>
+        <div class="field">
+          <label for="fillIn">Fill report</label>
+          <textarea id="fillIn" class="code" rows="6" spellcheck="false" autocomplete="off" autocapitalize="characters"></textarea>
+          <p id="fillMsg" class="msg" role="status"></p>
+        </div>
+        <div id="fillOut" hidden>
+          <div id="fillVerdict" class="banner" role="status"></div>
+          <p id="fillSeen" class="msg"></p>
+          <dl class="facts" id="fillFacts"></dl>
+          <p class="small muted">This browser remembers the report numbers it has verified (per sensor) to spot a report sent twice or reports that never arrived. Use one computer for this, or merge by checking the numbers yourself.</p>
+          <p><button type="button" class="btn" id="fillForget">Forget the remembered report numbers</button></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================ OPEN REPORT FILE -->
+    <section role="tabpanel" id="panel-reports" aria-labelledby="tab-reports" tabindex="0" hidden>
+      <div class="card noprint">
+        <h2>Open a report file</h2>
+        <p class="hint">After a fill, the operator's phone app makes an encrypted report file. Open it here to read the reports and to check that they are genuine. Everything is done on this computer; nothing is sent anywhere.</p>
+        <p id="repKeyMsg" class="msg" role="status" aria-live="polite"></p>
+        <details id="repKeyBox">
+          <summary>Choose a report key file</summary>
+          <p class="small muted">The report key is the private key that opens the files. If this copy of the page does not carry it, choose its key file and type the passphrase. Choose another key file the same way to open files made for an older key.</p>
+          <div class="field">
+            <label for="repKeyFile">Report key file (.key.json)</label>
+            <input type="file" id="repKeyFile">
+          </div>
+          <div class="field">
+            <label for="repKeyPass">Passphrase</label>
+            <input type="password" id="repKeyPass" autocomplete="off">
+          </div>
+          <button type="button" class="btn" id="repKeyLoad">Load key</button>
+          <p id="repKeyLoadMsg" class="msg" role="status" aria-live="polite"></p>
+        </details>
+      </div>
+
+      <div class="card noprint">
+        <div class="drop" id="repDrop">
+          <label for="repFile">Report file</label>
+          <input type="file" id="repFile" multiple>
+          <p class="hint">Choose the file (or several), or drop it anywhere on this page.</p>
+        </div>
+        <div class="field">
+          <label for="repText">Or paste the text of the report</label>
+          <textarea id="repText" class="code" rows="5" spellcheck="false" autocomplete="off"></textarea>
+          <p class="hint">Paste the whole message, from the line -----BEGIN MRM FUEL REPORT----- to the line -----END MRM FUEL REPORT-----. Several reports pasted one after the other are fine, and so is any text around them.</p>
+        </div>
+        <p id="repMsg" class="msg" role="status" aria-live="polite"></p>
+        <p><button type="button" class="btn" id="repClear">Clear</button></p>
+      </div>
+
+      <div id="repOut" hidden>
+        <div class="card">
+          <h2>Result</h2>
+          <div id="repSummary" class="banner" role="status"></div>
+          <div id="repNotices"></div>
+          <div class="row noprint">
+            <button type="button" class="btn primary" id="repDownload">Download decoded CSV</button>
+            <button type="button" class="btn" id="repPrint">Print</button>
+            <button type="button" class="btn" id="repForget">Forget the remembered report numbers</button>
+            <span id="repToolMsg" class="small" role="status" aria-live="polite"></span>
+          </div>
+          <div class="tablewrap"><table class="sum" id="repTable"></table></div>
+          <p class="small muted">Every figure below is read from the sensor's signed report. The table in the file is only a copy: where it differs, the report says so. This browser remembers the report numbers it has verified (per sensor) to spot a report sent twice or reports that never arrived.</p>
+        </div>
+        <div id="repList"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>Fuel Level Sensor Management Application. Single file, works offline.</footer>
+</div>
+
+<script>
+/* BEGIN CORE */
+// Pure functions: no DOM access. Extracted and tested in Node by dev/authority/test (node --test).
+// Contract: dev/firmware/docs/DESIGN.md section 4.
+const FSCore = (function () {
+  'use strict';
+
+  const TOOL_VERSION = '2.0.0';
+  const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+  const CHALLENGE_BYTES = 23;
+  const RESPONSE_BYTES = 65;
+  const CHALLENGE_FORMAT = 1;
+  const RESPONSE_DOMAIN = 'MRM-FUEL-RESP-1';
+  const SERVICE_DOMAIN = 'MRM-FUEL-SERV-1';     // service responses: the /debug page, Procom service key (DESIGN 4.2)
+  const EPOCH_2025_UNIX = 1735689600;      // 2025-01-01T00:00:00Z
+  const IST_OFFSET_MIN = 330;              // UTC+5:30
+  const KEYFILE_FORMAT = 'mrm-fuel-authority-key';
+  const KEYFILE_ITERATIONS = 600000;
+  const KEYFILE_MIN_ITERATIONS = 1000;
+  const KEYFILE_MAX_ITERATIONS = 10000000;
+  const MIN_PASSPHRASE_CHARS = 12;
+  const ED = { name: 'Ed25519' };
+  const PKCS8_PREFIX = [0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20];
+  const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  // RFC 8032 section 7.1, TEST 1 (empty message): used to check the browser's Ed25519 at start-up.
+  const RFC8032_SEED = '9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60';
+  const RFC8032_PUB = 'd75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a';
+  const RFC8032_SIG = 'e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b';
+
+  class CoreError extends Error {
+    constructor(code, message) { super(message); this.name = 'CoreError'; this.code = code; }
+  }
+
+  // ---------------------------------------------------------------- bytes
+  function hex(bytes) {
+    let s = '';
+    for (const b of bytes) s += (b < 16 ? '0' : '') + b.toString(16);
+    return s;
+  }
+  function unhex(s) {
+    if (typeof s !== 'string' || s.length % 2 || /[^0-9a-fA-F]/.test(s)) throw new CoreError('hex', 'not a hex string');
+    const out = new Uint8Array(s.length / 2);
+    for (let i = 0; i < out.length; i++) out[i] = parseInt(s.substr(2 * i, 2), 16);
+    return out;
+  }
+  function concat(...parts) {
+    const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+    let o = 0;
+    for (const p of parts) { out.set(p, o); o += p.length; }
+    return out;
+  }
+  function equalBytes(a, b) {
+    if (a.length !== b.length) return false;
+    let d = 0;
+    for (let i = 0; i < a.length; i++) d |= a[i] ^ b[i];
+    return d === 0;
+  }
+  const ascii = (s) => Uint8Array.from(s, (c) => c.charCodeAt(0));
+  const utf8 = (s) => new TextEncoder().encode(s);
+
+  // ---------------------------------------------------------------- CRC-16/CCITT-FALSE
+  function crc16(bytes) {
+    let crc = 0xffff;
+    for (const b of bytes) {
+      crc ^= b << 8;
+      for (let i = 0; i < 8; i++) crc = crc & 0x8000 ? ((crc << 1) ^ 0x1021) & 0xffff : (crc << 1) & 0xffff;
+    }
+    return crc;
+  }
+
+  // ---------------------------------------------------------------- Crockford base32 (MSB-first, zero-padded)
+  const symbolsFor = (nbytes) => Math.ceil((nbytes * 8) / 5);
+
+  function b32encode(bytes) {
+    let out = '';
+    let acc = 0;
+    let bits = 0;
+    for (const b of bytes) {
+      acc = ((acc << 8) | b) & 0xfff;
+      bits += 8;
+      while (bits >= 5) {
+        out += ALPHABET[(acc >> (bits - 5)) & 31];
+        bits -= 5;
+      }
+    }
+    if (bits > 0) out += ALPHABET[(acc << (5 - bits)) & 31];
+    return out;
+  }
+
+  // Lenient cleanup (DESIGN 4.1): case-insensitive; separators ignored; O->0, I/L->1; U and anything else rejected.
+  // This tool also ignores any Unicode space, dash or zero-width character that chat apps and phones insert.
+  const IGNORED = /[\s­​-‍‐-―⁠−﹘﹣－﻿-]/;
+  function cleanSymbols(text) {
+    let out = '';
+    for (const ch of String(text)) {
+      if (IGNORED.test(ch)) continue;
+      const c = ch.toUpperCase();
+      if (c === 'O') { out += '0'; continue; }
+      if (c === 'I' || c === 'L') { out += '1'; continue; }
+      if (c === 'U') throw new CoreError('char_u', 'It contains the letter U, which is never used. Check that symbol (V?).');
+      if (c.length !== 1 || ALPHABET.indexOf(c) < 0) {
+        throw new CoreError('char', 'It contains a character that is never used: "' + ch + '".');
+      }
+      out += c;
+    }
+    return out;
+  }
+
+  function b32decodeSymbols(symbols, nbytes) {
+    const want = symbolsFor(nbytes);
+    if (symbols.length !== want) {
+      throw new CoreError('length', 'It has ' + symbols.length + ' symbols; ' + want + ' are expected. A symbol is missing or extra.');
+    }
+    const out = new Uint8Array(nbytes);
+    let acc = 0;
+    let bits = 0;
+    let k = 0;
+    for (const s of symbols) {
+      acc = ((acc << 5) | ALPHABET.indexOf(s)) & 0xfff;
+      bits += 5;
+      if (bits >= 8) {
+        out[k++] = (acc >> (bits - 8)) & 0xff;
+        bits -= 8;
+      }
+    }
+    if ((acc & ((1 << bits) - 1)) !== 0) throw new CoreError('padding', 'The last symbol is not valid. Check the end of the text.');
+    return out;
+  }
+
+  const b32decode = (text, nbytes) => b32decodeSymbols(cleanSymbols(text), nbytes);
+
+  function groupSymbols(symbols, size) {
+    const parts = [];
+    for (let i = 0; i < symbols.length; i += size) parts.push(symbols.slice(i, i + size));
+    return parts.join('-');
+  }
+
+  // ---------------------------------------------------------------- challenge (23 bytes)
+  const fwVersionText = (v) => ((v >> 11) & 31) + '.' + ((v >> 5) & 63) + '.' + (v & 31);
+
+  function unpackChallenge(b) {
+    if (!b || b.length !== CHALLENGE_BYTES) throw new CoreError('length', 'A challenge has ' + CHALLENGE_BYTES + ' bytes.');
+    const get = (off, n) => { let v = 0; for (let i = 0; i < n; i++) v = v * 256 + b[off + i]; return v; };
+    const crc = get(21, 2);
+    if (crc16(b.subarray(0, 21)) !== crc) {
+      throw new CoreError('crc', 'The check digits do not match: there is a typo somewhere. Ask the operator to copy and paste the challenge again.');
+    }
+    const format = b[0] >> 5;
+    if (format !== CHALLENGE_FORMAT) {
+      throw new CoreError('format', 'This challenge uses format ' + format + ', which this tool does not know. A newer version of this tool is needed.');
+    }
+    if (b[0] & 1) throw new CoreError('reserved', 'This challenge sets a flag this tool does not know. A newer version of this tool is needed.');
+    const mac = b.subarray(1, 7);
+    const fw = get(16, 2);
+    return {
+      format,
+      calibrated: !!(b[0] & 0x10),
+      last_ok: !!(b[0] & 0x08),
+      last_known: !!(b[0] & 0x04),
+      locked: !!(b[0] & 0x02),
+      mac: hex(mac),
+      mac_text: Array.from(mac, (x) => (x < 16 ? '0' : '') + x.toString(16)).join(':').toUpperCase(),
+      ok_count: get(7, 2),
+      fails: b[9],
+      last_attempt_min: get(10, 3),
+      phone_min: get(13, 3),
+      fw_version: fw,
+      fw_version_text: fwVersionText(fw),
+      nonce: get(18, 3),
+      crc,
+    };
+  }
+
+  const challengeText = (b) => 'FS-' + groupSymbols(b32encode(b), 5);
+
+  // Returns { bytes, fields, text }. Accepts the text with or without the FS prefix.
+  function decodeChallenge(text) {
+    const syms = cleanSymbols(text);
+    const want = symbolsFor(CHALLENGE_BYTES);
+    let body;
+    if (syms.length === want + 2) {
+      if (syms.slice(0, 2) !== 'FS') throw new CoreError('prefix', 'A challenge starts with FS.');
+      body = syms.slice(2);
+    } else if (syms.length === want) {
+      body = syms;
+    } else if (syms.length === 0) {
+      throw new CoreError('length', 'Paste the challenge.');
+    } else {
+      const n = syms.slice(0, 2) === 'FS' ? syms.length - 2 : syms.length;
+      throw new CoreError('length', 'It has ' + n + ' symbols after FS; ' + want + ' are expected. A symbol is missing or extra.');
+    }
+    const bytes = b32decodeSymbols(body, CHALLENGE_BYTES);
+    return { bytes, fields: unpackChallenge(bytes), text: challengeText(bytes) };
+  }
+
+  // ---------------------------------------------------------------- time (minutes since 2025-01-01Z, phone-reported)
+  const pad2 = (n) => (n < 10 ? '0' : '') + n;
+  function minutesToIsoUtc(min) {
+    return min ? new Date((EPOCH_2025_UNIX + min * 60) * 1000).toISOString().replace('.000Z', 'Z') : null;
+  }
+  function formatIST(min) {
+    const d = new Date((EPOCH_2025_UNIX + (min + IST_OFFSET_MIN) * 60) * 1000);
+    return DAYS[d.getUTCDay()] + ' ' + d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()] + ' ' + d.getUTCFullYear() +
+      ', ' + pad2(d.getUTCHours()) + ':' + pad2(d.getUTCMinutes()) + ' IST';
+  }
+  const nowMinutes = (nowMs) => (nowMs / 1000 - EPOCH_2025_UNIX) / 60;
+
+  // diffMin = now - then, in minutes (may be fractional or negative).
+  function formatAgo(diffMin) {
+    if (diffMin > -2 && diffMin < 1) return 'just now';
+    const m = Math.floor(Math.abs(diffMin));
+    const d = Math.floor(m / 1440);
+    const h = Math.floor((m % 1440) / 60);
+    const mm = m % 60;
+    let s;
+    if (d > 0) s = d + (d === 1 ? ' day' : ' days') + (h ? ' ' + h + ' h' : '');
+    else if (h > 0) s = h + ' h' + (mm ? ' ' + mm + ' min' : '');
+    else s = mm + ' min';
+    return diffMin >= 0 ? s + ' ago' : 'in ' + s;
+  }
+
+  // Plain-language rows for every challenge field. level: '' | 'warn' | 'bad'.
+  function describeChallenge(f, nowMs) {
+    const rows = [];
+    const row = (id, label, value, note, level) => rows.push({ id, label, value, note: note || '', level: level || '' });
+    row('mac', 'Device MAC', f.mac_text, 'Sensor name PROCOM-SENSOR-' + f.mac.toUpperCase());
+    row('fw', 'Firmware version', f.fw_version_text);
+    row('ok', 'Successful logins so far', f.ok_count === 0xffff ? '65535 or more' : String(f.ok_count));
+    row('fails', 'Failed attempts since the last success', f.fails === 0xff ? '255 or more' : String(f.fails),
+      f.fails > 0 ? 'Wrong responses were entered on this device. Check with the operator before you sign.' : '',
+      f.fails > 0 ? 'warn' : '');
+    row('cal', 'Site calibration', f.calibrated ? 'Done' : 'Not done');
+
+    const neverTried = f.ok_count === 0 && f.fails === 0 && !f.last_ok && !f.last_known && f.last_attempt_min === 0;
+    if (neverTried) {
+      row('last', 'Last attempt', 'None yet');
+    } else {
+      const known = f.last_known && f.last_attempt_min > 0;
+      const when = known ? formatIST(f.last_attempt_min) + ' (phone-reported)' : 'time unknown (the phone sent none)';
+      const odd = f.last_known !== f.last_attempt_min > 0 ? 'The device\'s "time known" flag and its stored time disagree.' : '';
+      row('last', 'Last attempt', (f.last_ok ? 'Passed' : 'Failed') + ', ' + when, odd, f.last_ok ? '' : 'warn');
+    }
+
+    if (f.phone_min === 0) {
+      row('issued', 'Challenge issued', 'Unknown (the phone sent no time)');
+    } else {
+      const diff = nowMinutes(nowMs) - f.phone_min;
+      let note = formatAgo(diff) + ' by this computer\'s clock';
+      let level = '';
+      if (diff <= -5) {
+        note += '. That is in the future: the phone\'s clock or this computer\'s clock is wrong.';
+        level = 'warn';
+      } else if (diff > 24 * 60) {
+        note += '. Make sure this is the challenge the sensor shows now.';
+      }
+      row('issued', 'Challenge issued', formatIST(f.phone_min) + ' (phone-reported)', note, level);
+    }
+
+    row('locked', 'Locked out', f.locked ? 'Yes' : 'No',
+      f.locked ? 'Too many wrong responses. The sensor accepts one attempt per 15 minutes of running time; a correct response still works.' : '',
+      f.locked ? 'bad' : '');
+    row('nonce', 'Random nonce', f.nonce.toString(16).toUpperCase().padStart(6, '0'));
+    row('check', 'Check digits', 'Valid');
+    return rows;
+  }
+
+  // ---------------------------------------------------------------- grant and response (65 bytes)
+  function grantByte(g) {
+    const hours = g.hours === undefined ? 1 : g.hours;
+    if (!Number.isInteger(hours) || hours < 1 || hours > 15) throw new CoreError('hours', 'The session length must be 1 to 15 hours.');
+    if (!g.settings && !g.firmware && !g.calibration) throw new CoreError('scope', 'Allow at least one action.');
+    if (g.older && !g.firmware) throw new CoreError('older', 'Allowing an older firmware needs "Update the firmware".');
+    return (g.settings ? 1 : 0) | (g.firmware ? 2 : 0) | (g.calibration ? 4 : 0) | (g.older ? 8 : 0) | (hours << 4);
+  }
+  function decodeGrant(b) {
+    return { settings: !!(b & 1), firmware: !!(b & 2), calibration: !!(b & 4), older: !!(b & 8), hours: (b >> 4) || 1 };
+  }
+  function describeGrant(b) {
+    const g = decodeGrant(b);
+    const what = [];
+    if (g.settings) what.push('tank settings');
+    if (g.firmware) what.push(g.older ? 'firmware update (older versions allowed)' : 'firmware update');
+    if (g.calibration) what.push('calibration');
+    return 'Allows ' + (what.join(', ') || 'nothing') + '; session up to ' + g.hours + (g.hours === 1 ? ' hour' : ' hours') + '.';
+  }
+  // Service grant byte (DESIGN 4.2): bit0 = the service page (read only), bits 1-3 reserved (0), bits 4-7 session hours.
+  function serviceGrantByte(g) {
+    const hours = g && g.hours !== undefined ? g.hours : 1;
+    if (!Number.isInteger(hours) || hours < 1 || hours > 15) throw new CoreError('hours', 'The session length must be 1 to 15 hours.');
+    return 1 | (hours << 4);
+  }
+  function decodeServiceGrant(b) { return { service: !!(b & 1) && !(b & 0x0e), hours: (b >> 4) || 1 }; }
+  function describeServiceGrant(b) {
+    const g = decodeServiceGrant(b);
+    return 'Opens the service page (technical details, event log, device log; read only); session up to ' + g.hours +
+      (g.hours === 1 ? ' hour.' : ' hours.');
+  }
+  const responseMessage = (challenge, grant, domain) =>
+    concat(ascii(domain || RESPONSE_DOMAIN), challenge, Uint8Array.of(grant & 0xff));
+  const responseText = (r) => groupSymbols(b32encode(r), 4);
+  const decodeResponse = (text) => b32decode(text, RESPONSE_BYTES);
+
+  // ---------------------------------------------------------------- fill reports (DESIGN 14)
+  // The sensor signs SHA-256("MRM-FUEL-FILL-1" + NUL + payload) with the fill-report key (ECDSA P-256, r||s). PUBLIC keys
+  // by key id (keys/fill_report_signing.pub); a later key gets the next id.
+  // Two formats share that signature. Format 1 (62-byte payload) is the 1.2 report. Format 2 (104 bytes, firmware 2.0) is
+  // format 1 plus the site ID and position, the operator's position at Start, the distance the phone moved, and the
+  // sensor's own clock at Start and End. The code is the payload plus the 64-byte signature.
+  const FILL_DOMAIN = 'MRM-FUEL-FILL-1';
+  const FILL_SIG_BYTES = 64;
+  const FILL_PAYLOAD_BYTES = 62;                 // format 1
+  const FILL_CODE_BYTES = 126;                   // format 1: payload + signature
+  const FILL_PAYLOADS = { 1: 62, 2: 104 };       // payload bytes by format
+  const FILL_KEYS = { 1: '043d2b949ebfd99e7c27957240c4d22895aee93fccfccbe1b3eee2f7878c6aa8fd69c79ae74192cc6049640df516bb2a4b5455ff3f6046bff73774ab45a4b6d910' };
+  const NO_COORD = 0x7fffffff;                   // format 2: "no position" in a latitude or a longitude
+  const MOVED_UNKNOWN = 0xffff;                  // format 2: the distance the phone moved was not measured
+  const MOVED_SATURATED = 65534;                 // format 2: 65534 means "65534 m or more"
+  const MOVED_FAR_M = 100;                       // format 2: more than this sets flag bit 7
+  const SITE_FAR_M = 200;                        // warn when the operator's position is farther than this from the site
+  const CLOCK_WARN_S = 600;                      // warn when the phone clock and the sensor clock differ by more than this
+  const OSM_LINK = 'https://www.openstreetmap.org/';   // the only address in this page: a link the user may click, never fetched
+  // What each flag bit means for IT (plain words). `formats`: the report formats in which the bit is defined.
+  const FILL_FLAG_TABLE = [
+    { bit: 0, formats: [1, 2], text: 'the sensor restarted while filling', short: 'restart' },
+    { bit: 1, formats: [1, 2], text: 'the fuel level was still moving when measured', short: 'unsettled' },
+    { bit: 2, formats: [1], text: 'the sensor had just been turned on: some earlier fuel may be missing', short: 'short look-back' },
+    { bit: 3, formats: [1, 2], text: 'the tank size was changed during this fill', short: 'tank changed' },
+    { bit: 4, formats: [1, 2], text: 'the sensor was not sure of the fuel level', short: 'level unconfirmed' },
+    { bit: 5, formats: [1, 2], text: 'a fuel change in this period needs a second check', short: 'unverified' },
+    { bit: 6, formats: [1, 2], text: 'closed automatically after 2 hours without a response', short: 'auto-closed' },
+    { bit: 7, formats: [2], text: "the operator's phone moved more than " + MOVED_FAR_M + ' m from where the fill was started', short: 'moved >' + MOVED_FAR_M + ' m' },
+    { bit: 8, formats: [2], text: 'fuel was already flowing when Start was pressed, so the sensor litres may include some of it', short: 'flowing at Start' },
+  ];
+
+  // { known: [{ bit, text, short }], unknown: [bit, ...] } for the flag bits of a decoded report.
+  function fillFlags(f) {
+    const known = [], unknown = [];
+    for (let bit = 0; bit < 16; bit++) {
+      if (!((f.flags >> bit) & 1)) continue;
+      const t = FILL_FLAG_TABLE.find((x) => x.bit === bit && x.formats.includes(f.format));
+      if (t) known.push({ bit, text: t.text, short: t.short }); else unknown.push(bit);
+    }
+    return { known, unknown };
+  }
+
+  const coordOrNull = (v) => (v === NO_COORD ? null : v);
+
+  function unpackFill(p) {
+    if (!p || p.length < 1) throw new CoreError('length', 'A fill report has at least ' + FILL_PAYLOAD_BYTES + ' bytes of data.');
+    const format = p[0];
+    const need = FILL_PAYLOADS[format];
+    if (!need) throw new CoreError('format', 'Unknown fill-report format ' + format + ' (this tool reads formats 1 and 2). Update the tool.');
+    if (p.length < need) throw new CoreError('length', 'A format ' + format + ' fill report has ' + need + ' bytes of data.');
+    const v = new DataView(p.buffer, p.byteOffset, p.byteLength);
+    const f = {
+      format, key_id: p[1], mac: hex(p.slice(2, 8)).toUpperCase(), fw_version: v.getUint16(8),
+      serial: v.getUint32(10), since_reset: v.getUint16(14), gen: v.getUint16(16), settings_changes: v.getUint16(18),
+      phone_start: v.getUint32(20), phone_end: v.getUint32(24), tz_min: v.getInt16(28), duration_s: v.getUint32(30),
+      lookback_s: v.getUint16(34), operator_cl: v.getUint32(36), sensor_cl: v.getUint32(40), drained_cl: v.getUint32(44),
+      level_before: v.getInt32(48), level_after: v.getInt32(52), lpmm_ul: v.getUint32(56), flags: v.getUint16(60),
+      // format 2 only (a format 1 report carries none of this: empty / null / 0)
+      site_id: '', site_id_odd: false, site_lat_ud: null, site_lon_ud: null, op_lat_ud: null, op_lon_ud: null,
+      moved_m: null, dev_utc_start: 0, dev_utc_end: 0,
+    };
+    if (format === 2) {
+      // 16 bytes of ASCII, padded with NUL: text up to the first NUL; anything else is shown as "?" and noted
+      let id = '', ended = false;
+      for (let i = 62; i < 78; i++) {
+        const b = p[i];
+        if (b === 0) { ended = true; continue; }
+        if (ended || b < 0x20 || b > 0x7e) { f.site_id_odd = true; if (ended) continue; }
+        id += b >= 0x20 && b <= 0x7e ? String.fromCharCode(b) : '?';
+      }
+      f.site_id = id;
+      f.site_lat_ud = coordOrNull(v.getInt32(78));
+      f.site_lon_ud = coordOrNull(v.getInt32(82));
+      f.op_lat_ud = coordOrNull(v.getInt32(86));
+      f.op_lon_ud = coordOrNull(v.getInt32(90));
+      const moved = v.getUint16(94);
+      f.moved_m = moved === MOVED_UNKNOWN ? null : moved;
+      f.dev_utc_start = v.getUint32(96);
+      f.dev_utc_end = v.getUint32(100);
+    }
+    return f;
+  }
+
+  // The code in a pasted text. The readable line may come first ("Fill report #12 ... " and then the code), and a group of the code
+  // can itself end in "FR" so that "FR-" appears INSIDE the code: take the first "FR-" after which everything is a code. Without
+  // any "FR-" the whole text is tried. The format is the first byte of the code; it decides how long the code must be.
+  function fillFromSymbols(symbols) {
+    if (!symbols) throw new CoreError('empty', 'Paste a fill report (FR-...).');
+    if (symbols.length < 2) throw new CoreError('length', 'It is too short to be a fill report.');
+    const format = (ALPHABET.indexOf(symbols[0]) << 3) | (ALPHABET.indexOf(symbols[1]) >> 2);
+    const payloadBytes = FILL_PAYLOADS[format];
+    if (!payloadBytes) throw new CoreError('format', 'Unknown fill-report format ' + format + ' (this tool reads formats 1 and 2). Update the tool.');
+    const total = payloadBytes + FILL_SIG_BYTES;
+    const want = symbolsFor(total);
+    if (symbols.length !== want) {
+      throw new CoreError('length', 'It has ' + symbols.length + ' symbols; ' + want + ' are expected for a format ' + format + ' report. A symbol is missing or extra.');
+    }
+    const bytes = b32decodeSymbols(symbols, total);
+    const payload = bytes.slice(0, payloadBytes);
+    return { bytes, payload, sig: bytes.slice(payloadBytes), fields: unpackFill(payload) };
+  }
+  function decodeFill(text) {
+    const s = String(text == null ? '' : text);
+    const upper = s.toUpperCase();
+    const candidates = [];
+    for (let i = upper.indexOf('FR-'); i >= 0; i = upper.indexOf('FR-', i + 1)) candidates.push(s.slice(i + 3));
+    if (!candidates.length) candidates.push(s.replace(/^\s*FR(?=[\s-])/i, ''));
+    let codeErr = null, textErr = null;
+    for (const rest of candidates) {
+      let symbols;
+      try { symbols = cleanSymbols(rest); } catch (e) { textErr = textErr || e; continue; }
+      try { return fillFromSymbols(symbols); } catch (e) { codeErr = codeErr || e; }
+    }
+    throw codeErr || textErr;
+  }
+
+  function fillMessage(payload) { return concat(utf8(FILL_DOMAIN), new Uint8Array([0]), payload); }
+
+  // { ok, code: 'genuine' | 'invalid' | 'unknown_key' }
+  async function verifyFill(d, keys = FILL_KEYS) {
+    const pubHex = keys[d.fields.key_id];
+    if (!pubHex) return { ok: false, code: 'unknown_key' };
+    const key = await subtle().importKey('raw', unhex(pubHex), { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
+    const ok = await subtle().verify({ name: 'ECDSA', hash: 'SHA-256' }, key, d.sig, fillMessage(d.payload));
+    return { ok, code: ok ? 'genuine' : 'invalid' };
+  }
+
+  // litres x 100 -> "49.6 L": one decimal, rounded half up on the x 100 figure, exactly as the sensor writes its readable line
+  const litresText = (cl) => { const dl = Math.floor((cl + 5) / 10); return Math.floor(dl / 10) + '.' + (dl % 10) + ' L'; };
+  function fillTime(u, tz) {
+    const d = new Date((u + tz * 60) * 1000);
+    return { day: d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()], year: d.getUTCFullYear(),
+      hm: String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0') };
+  }
+  function tzText(tz) {
+    const a = Math.abs(tz);
+    return 'UTC' + (tz < 0 ? '-' : '+') + Math.floor(a / 60) + ':' + String(a % 60).padStart(2, '0');
+  }
+  // The sensor's readable line (core/fillreport.cpp fill_readable); format 2 adds " . site <ID>" after the MAC when a site ID is set.
+  function fillLine(f) {
+    let when = 'time unknown';
+    if (f.phone_start) {
+      const a = fillTime(f.phone_start, f.tz_min);
+      when = a.day + ' ' + a.hm;
+      if (f.phone_end) {
+        const b = fillTime(f.phone_end, f.tz_min);
+        when += '\u2013' + (b.day === a.day && b.year === a.year ? '' : b.day + ' ') + b.hm;
+      } else when += ' (not ended)';
+    }
+    const site = f.format >= 2 && f.site_id ? ' \u00b7 site ' + f.site_id : '';
+    let s = 'Fill report #' + f.serial + ' \u00b7 PROCOM-SENSOR-' + f.mac + site + ' \u00b7 ' + when + ' \u00b7 operator ' +
+      (f.operator_cl === 0xffffffff ? 'not entered' : litresText(f.operator_cl)) + ' \u00b7 sensor ' + litresText(f.sensor_cl);
+    // like the sensor's own line: the names of bits 0 to 7, whatever the format
+    const fl = FILL_FLAG_TABLE.filter((t) => (f.flags >> t.bit) & 1).map((t) => t.short);
+    if (fl.length) s += ' \u00b7 flags: ' + fl.join(', ');
+    return s;
+  }
+  // A length of time in plain words: "45 s", "2 min 5 s", "3 h 10 min", "2 days 4 h".
+  function spanText(secs) {
+    const s = Math.abs(Math.round(secs));
+    if (s < 60) return s + ' s';
+    const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
+    if (d) return d + (d === 1 ? ' day' : ' days') + (h ? ' ' + h + ' h' : '');
+    if (h) return h + ' h' + (m ? ' ' + m + ' min' : '');
+    return m + ' min' + (r ? ' ' + r + ' s' : '');
+  }
+  function durText(s) {
+    if (s < 60) return s + ' s';
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+    return (h ? h + ' h ' : '') + m + ' min';
+  }
+  // A unix time written in the phone's own time zone, with seconds: "14 Oct 2026, 14:05:03 (UTC+5:30)".
+  function clockText(u, tz) {
+    const d = new Date((u + tz * 60) * 1000);
+    return d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()] + ' ' + d.getUTCFullYear() + ', ' + pad2(d.getUTCHours()) + ':' +
+      pad2(d.getUTCMinutes()) + ':' + pad2(d.getUTCSeconds()) + ' (' + tzText(tz) + ')';
+  }
+
+  // ---- positions (format 2). Latitude and longitude are signed 32-bit micro-degrees; NO_COORD means "no position".
+  const degText = (e6) => (e6 < 0 ? '-' : '') + Math.floor(Math.abs(e6) / 1e6) + '.' + String(Math.abs(e6) % 1e6).padStart(6, '0');
+  // { state: 'none' | 'invalid' | 'ok', lat, lon (degrees), lat_text, lon_text (6 decimals) }
+  function position(latE6, lonE6) {
+    const none = (v) => v === null || v === undefined;
+    if (none(latE6) && none(lonE6)) return { state: 'none' };
+    if (none(latE6) || none(lonE6) || Math.abs(latE6) > 90e6 || Math.abs(lonE6) > 180e6) return { state: 'invalid' };
+    return { state: 'ok', lat: latE6 / 1e6, lon: lonE6 / 1e6, lat_text: degText(latE6), lon_text: degText(lonE6) };
+  }
+  // Great-circle distance in metres between two { lat, lon } in degrees (haversine, mean Earth radius).
+  function distanceM(a, b) {
+    const rad = Math.PI / 180;
+    const dLat = (b.lat - a.lat) * rad, dLon = (b.lon - a.lon) * rad;
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLon / 2) ** 2;
+    return 2 * 6371008.8 * Math.asin(Math.min(1, Math.sqrt(h)));
+  }
+  const distanceText = (m) => (m < 1000 ? m + ' m' : (m / 1000).toFixed(m < 100000 ? 1 : 0) + ' km');
+  // A plain link to the place on OpenStreetMap (opened by the user's click; this page never fetches it).
+  const osmLink = (p) => OSM_LINK + '?mlat=' + p.lat_text + '&mlon=' + p.lon_text + '#map=17/' + p.lat_text + '/' + p.lon_text;
+
+  // The three figures IT compares, as text: { operator, sensor, difference, diff_cl, diff_pct }. The difference is the sensor's
+  // litres minus the operator's ("+0.4 L (+0.8 %)"); empty when the operator entered no litres.
+  function fillFigures(f) {
+    const noOp = f.operator_cl === 0xffffffff;
+    const diffCl = noOp ? null : f.sensor_cl - f.operator_cl;
+    const pct = noOp || f.operator_cl === 0 ? null : 100 * diffCl / f.operator_cl;
+    return {
+      operator: noOp ? 'not entered' : litresText(f.operator_cl), sensor: litresText(f.sensor_cl), diff_cl: diffCl, diff_pct: pct,
+      difference: noOp ? '' : (diffCl >= 0 ? '+' : '') + (diffCl / 100).toFixed(1) + ' L' + (pct === null ? '' : ' (' + (pct >= 0 ? '+' : '') + pct.toFixed(1) + ' %)'),
+    };
+  }
+
+  // Everything IT is shown about one decoded report: { rows: [{ id, label, value, note, level, link? }], warnings: [text] }.
+  // level: '' | 'warn' | 'bad'. Customer wording only.
+  function analyseFill(f) {
+    const rows = [], warnings = [];
+    const add = (id, label, value, note, level, link) => rows.push({ id, label, value, note: note || '', level: level || '', ...(link ? { link } : {}) });
+    const warn = (text) => { if (!warnings.includes(text)) warnings.push(text); };
+    const tz = f.tz_min;
+    const x2 = f.format >= 2;
+    const noOperator = f.operator_cl === 0xffffffff;
+    add('serial', 'Report number', '#' + f.serial, '');
+    add('mac', 'Sensor (MAC)', f.mac, 'Its name is PROCOM-SENSOR-' + f.mac + '.');
+    if (x2) {
+      add('site', 'Site ID', f.site_id || 'not set', f.site_id_odd ? 'The site ID in the report has unexpected characters.' : '', f.site_id_odd ? 'warn' : '');
+      if (f.site_id_odd) warn('the site ID in the report has unexpected characters');
+    }
+
+    // times: the phone's clock, and (format 2) the sensor's own clock, which the operator cannot change
+    const clockRow = (id, label, phoneU, devU, isEnd) => {
+      add(id, label, phoneU ? clockText(phoneU, tz) : (isEnd ? 'not pressed' : 'unknown'),
+        phoneU ? 'Phone clock.' : (isEnd ? 'The sensor closed the report.' : 'The phone sent no time.'), isEnd && !phoneU ? 'warn' : '');
+      if (isEnd && !phoneU) warn('the operator did not press End filling');
+      if (!x2) return;
+      const dev = id + '_dev';
+      if (!devU) {
+        add(dev, label + ' (sensor clock)', isEnd && !phoneU ? 'not ended' : 'sensor clock not set',
+          isEnd && !phoneU ? '' : 'The sensor had no time of its own, so only the phone\'s time is available.');
+        return;
+      }
+      let note = 'Sensor clock.', level = '';
+      if (phoneU) {
+        const diff = devU - phoneU;
+        note = diff === 0 ? 'Sensor clock; the same as the phone clock.'
+          : 'Sensor clock; ' + spanText(diff) + (diff > 0 ? ' ahead of' : ' behind') + ' the phone clock.';
+        if (Math.abs(diff) > CLOCK_WARN_S) {
+          level = 'warn';
+          note += ' A difference over ' + (CLOCK_WARN_S / 60) + ' minutes means one of the two clocks is wrong; the operator cannot change the sensor clock.';
+          warn('the phone clock and the sensor clock differ by more than ' + (CLOCK_WARN_S / 60) + ' minutes');
+        }
+      } else note = 'Sensor clock. The phone sent no time to compare.';
+      add(dev, label + ' (sensor clock)', clockText(devU, tz), note, level);
+    };
+    clockRow('start', 'Start filling', f.phone_start, f.dev_utc_start, false);
+    clockRow('end', 'End filling', f.phone_end, f.dev_utc_end, true);
+    add('dur', 'Duration', durText(f.duration_s), '');
+
+    // litres
+    add('op', 'Operator litres', noOperator ? 'not entered' : litresText(f.operator_cl), '', noOperator ? 'warn' : '');
+    if (noOperator) warn('the operator did not enter the litres');
+    const diff = noOperator ? '' : ' (' + (f.sensor_cl >= f.operator_cl ? '+' : '') +
+      ((f.sensor_cl - f.operator_cl) / 100).toFixed(1) + ' L vs the operator' +
+      (f.operator_cl > 0 ? ', ' + (100 * (f.sensor_cl - f.operator_cl) / f.operator_cl).toFixed(1) + ' %' : '') + ')';
+    add('sensor', 'Sensor litres', litresText(f.sensor_cl) + diff, '');
+    add('drained', 'Drained in the same period', litresText(f.drained_cl), '', f.drained_cl > 0 ? 'warn' : '');
+    if (f.drained_cl > 0) warn('fuel was also taken out of the tank during this period');
+    add('level', 'Level before \u2192 after', (f.level_before / 100).toFixed(1) + ' mm \u2192 ' + (f.level_after / 100).toFixed(1) + ' mm',
+      'Tank factor ' + (f.lpmm_ul / 1e6).toFixed(3) + ' L per mm.');
+
+    // places (format 2): the site, the operator at Start, the distance between them, and how far the phone moved
+    if (x2) {
+      const sp = position(f.site_lat_ud, f.site_lon_ud), op = position(f.op_lat_ud, f.op_lon_ud);
+      const place = (id, label, p, noneNote, noneLevel, noneWarning) => {
+        if (p.state === 'ok') add(id, label, p.lat_text + ', ' + p.lon_text, 'Map link:', '', osmLink(p));
+        else if (p.state === 'none') {
+          add(id, label, 'no location', noneNote, noneLevel);
+          if (noneLevel) warn(noneWarning);
+        } else {
+          add(id, label, 'not valid', 'The position in the report is outside the possible range.', 'warn');
+          warn('the ' + label.toLowerCase() + ' in the report is not valid');
+        }
+      };
+      place('site_loc', 'Site location', sp, 'No position was set for this site on the sensor.', '', '');
+      place('op_loc', 'Operator location', op, 'The phone gave no position when the fill was started, so the place of the fill cannot be checked.',
+        'warn', 'the phone gave no position when the fill was started');
+      if (sp.state === 'ok' && op.state === 'ok') {
+        const dm = Math.round(distanceM(sp, op));
+        const away = dm > SITE_FAR_M;
+        add('dist', 'Distance, site to operator', distanceText(dm),
+          away ? 'The operator was more than ' + SITE_FAR_M + ' m from the site when the fill was started.' : '', away ? 'warn' : '');
+        if (away) warn('the operator was more than ' + SITE_FAR_M + ' m from the site when the fill was started');
+      } else {
+        add('dist', 'Distance, site to operator', 'not available', 'It needs both a site location and an operator location.');
+      }
+      const m = f.moved_m;
+      const far = !!(f.flags & 128) || (m !== null && m > MOVED_FAR_M);
+      add('moved', 'Operator moved during the fill', m === null ? 'not measured' : (m >= MOVED_SATURATED ? MOVED_SATURATED + ' m or more' : m + ' m'),
+        far ? 'The operator\'s phone moved more than ' + MOVED_FAR_M + ' m from where the fill was started. The fill may not have been done at the sensor: check with the site.'
+          : (m === null ? 'The phone app did not measure it.' : ''), far ? 'bad' : '');
+      if (far) warn("the operator's phone moved more than " + MOVED_FAR_M + ' m from where the fill was started');
+    }
+
+    // flags
+    const fl = fillFlags(f);
+    const flagTexts = fl.known.map((x) => x.text).concat(fl.unknown.map((b) => 'a flag this tool does not know (bit ' + b + '): use the latest tool'));
+    for (const t of flagTexts) warn(t);
+    add('flags', 'Warnings', flagTexts.length ? flagTexts.join('; ') : 'none', flagTexts.length ? 'Check this fill with the site.' : '',
+      flagTexts.length ? 'warn' : '');
+    add('settings', 'Settings changes (lifetime)', String(f.settings_changes), 'Tank size changes and resets to defaults: never goes down.');
+    add('fw', 'Firmware', fwVersionText(f.fw_version) + ', key ' + f.key_id + (x2 ? ', report format ' + f.format : ''), '');
+    return { rows, warnings };
+  }
+  const describeFill = (f) => analyseFill(f).rows;
+  const fillWarnings = (f) => analyseFill(f).warnings;
+
+  // Duplicates and gaps per sensor. rec = { MAC: { serial: payload hex } } (the caller keeps it in this browser).
+  // Returns { status: 'new' | 'duplicate' | 'conflict', missing: [[a, b], ...] (at most 5 ranges), rec: updated copy }.
+  function fillSeenCheck(rec, f, payloadHex) {
+    const all = Object.assign({}, rec || {});
+    const mine = Object.assign({}, all[f.mac] || {});
+    const prev = mine[f.serial];
+    const status = prev === undefined ? 'new' : (prev === payloadHex ? 'duplicate' : 'conflict');
+    if (prev === undefined) mine[f.serial] = payloadHex;
+    all[f.mac] = mine;
+    const nums = Object.keys(mine).map(Number).sort((a, b) => a - b);
+    const missing = [];
+    for (let i = 1; i < nums.length && missing.length < 5; i++) {
+      if (nums[i] > nums[i - 1] + 1) missing.push([nums[i - 1] + 1, nums[i] - 1]);
+    }
+    return { status, missing, rec: all };
+  }
+
+  // ---------------------------------------------------------------- Ed25519 and key files (WebCrypto)
+  function subtle() {
+    const c = globalThis.crypto;
+    if (!c || !c.subtle) throw new CoreError('no_crypto', 'This browser offers no Web Cryptography here.');
+    return c.subtle;
+  }
+
+  function pkcs8FromSeed(seed) {
+    if (seed.length !== 32) throw new CoreError('key', 'An Ed25519 seed has 32 bytes.');
+    return concat(Uint8Array.from(PKCS8_PREFIX), seed);
+  }
+
+  // Minimal DER walk of a PKCS#8 PrivateKeyInfo (RFC 5958 / 8410). Returns a copy of the 32-byte seed.
+  function seedFromPkcs8(der) {
+    const bad = () => new CoreError('key', 'The key inside the file is not an Ed25519 private key.');
+    function tlv(pos, end) {
+      if (pos + 2 > end) throw bad();
+      const tag = der[pos];
+      let len = der[pos + 1];
+      let p = pos + 2;
+      if (len & 0x80) {
+        const n = len & 0x7f;
+        if (n < 1 || n > 2 || p + n > end) throw bad();
+        len = 0;
+        for (let i = 0; i < n; i++) len = len * 256 + der[p++];
+      }
+      if (p + len > end) throw bad();
+      return { tag, start: p, end: p + len };
+    }
+    const top = tlv(0, der.length);
+    if (top.tag !== 0x30) throw bad();
+    const ver = tlv(top.start, top.end);
+    if (ver.tag !== 0x02) throw bad();
+    const alg = tlv(ver.end, top.end);
+    if (alg.tag !== 0x30) throw bad();
+    const oid = tlv(alg.start, alg.end);
+    if (oid.tag !== 0x06 || !equalBytes(der.subarray(oid.start, oid.end), Uint8Array.of(0x2b, 0x65, 0x70))) throw bad();
+    const pk = tlv(alg.end, top.end);
+    if (pk.tag !== 0x04) throw bad();
+    let s = der.subarray(pk.start, pk.end);
+    if (s.length === 34 && s[0] === 0x04 && s[1] === 0x20) s = s.subarray(2);
+    if (s.length !== 32) throw bad();
+    return Uint8Array.from(s);
+  }
+
+  async function sha256(bytes) { return new Uint8Array(await subtle().digest('SHA-256', bytes)); }
+  async function fingerprint(pub) { return hex(await sha256(pub)).slice(0, 16); }
+
+  async function importSeed(seed) {
+    const p8 = pkcs8FromSeed(seed);
+    try { return await subtle().importKey('pkcs8', p8, ED, false, ['sign']); } finally { p8.fill(0); }
+  }
+  async function importPublic(pub) { return subtle().importKey('raw', pub, ED, false, ['verify']); }
+
+  async function signResponse(signingKey, challenge, grant, domain) {
+    const sig = new Uint8Array(await subtle().sign(ED, signingKey, responseMessage(challenge, grant, domain)));
+    return concat(Uint8Array.of(grant & 0xff), sig);
+  }
+  async function verifyResponse(pub, challenge, response, domain) {
+    if (response.length !== RESPONSE_BYTES) return false;
+    return subtle().verify(ED, await importPublic(pub), response.subarray(1), responseMessage(challenge, response[0], domain));
+  }
+  async function keyMatches(signingKey, pub) {
+    const probe = utf8('MRM-FUEL key check');
+    const sig = await subtle().sign(ED, signingKey, probe);
+    return subtle().verify(ED, await importPublic(pub), sig, probe);
+  }
+
+  // Start-up check: Ed25519 present and correct (RFC 8032 TEST 1), PBKDF2 and AES-GCM present.
+  async function checkSupport() {
+    const c = globalThis.crypto;
+    if (!c || !c.subtle) {
+      return { ok: false, code: globalThis.isSecureContext === false ? 'insecure' : 'no_crypto' };
+    }
+    try {
+      const key = await importSeed(unhex(RFC8032_SEED));
+      const sig = new Uint8Array(await c.subtle.sign(ED, key, new Uint8Array(0)));
+      const ok = await c.subtle.verify(ED, await importPublic(unhex(RFC8032_PUB)), unhex(RFC8032_SIG), new Uint8Array(0));
+      if (!ok || hex(sig) !== RFC8032_SIG) return { ok: false, code: 'ed25519_wrong' };
+    } catch (e) {
+      return { ok: false, code: 'no_ed25519', detail: String(e && e.message || e) };
+    }
+    try {
+      const k = await c.subtle.importKey('raw', utf8('x'), 'PBKDF2', false, ['deriveBits']);
+      await c.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: new Uint8Array(16), iterations: 1 }, k, 256);
+      await c.subtle.importKey('raw', new Uint8Array(32), { name: 'AES-GCM' }, false, ['encrypt']);
+    } catch (e) {
+      return { ok: false, code: 'no_aes', detail: String(e && e.message || e) };
+    }
+    return { ok: true, code: 'ok' };
+  }
+
+  const passphraseBytes = (p) => utf8(String(p).normalize('NFC'));
+  const passphraseLength = (p) => Array.from(String(p)).length;
+
+  async function deriveKey(passphrase, salt, iterations) {
+    const s = subtle();
+    const base = await s.importKey('raw', passphraseBytes(passphrase), 'PBKDF2', false, ['deriveBits']);
+    const bits = new Uint8Array(await s.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations }, base, 256));
+    try {
+      return await s.importKey('raw', bits, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+    } finally {
+      bits.fill(0);
+    }
+  }
+
+  function randomBytes(n) { const b = new Uint8Array(n); globalThis.crypto.getRandomValues(b); return b; }
+  const isoNow = (ms) => new Date(ms === undefined ? Date.now() : ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
+
+  // Writes the DESIGN 4.4 key-file object. seed: 32 bytes; publicKey: 32 bytes (checked against the seed).
+  async function encryptKeyFile(o) {
+    const iterations = o.iterations === undefined ? KEYFILE_ITERATIONS : o.iterations;
+    const salt = o.salt || randomBytes(16);
+    const iv = o.iv || randomBytes(12);
+    const signer = await importSeed(o.seed);
+    if (!(await keyMatches(signer, o.publicKey))) throw new CoreError('mismatch', 'The public key does not belong to the private key.');
+    const p8 = pkcs8FromSeed(o.seed);
+    let ct;
+    try {
+      const key = await deriveKey(o.passphrase, salt, iterations);
+      ct = new Uint8Array(await subtle().encrypt({ name: 'AES-GCM', iv }, key, p8));
+    } finally {
+      p8.fill(0);
+    }
+    return {
+      format: KEYFILE_FORMAT,
+      version: 1,
+      kdf: 'PBKDF2-SHA256',
+      iterations,
+      salt: hex(salt),
+      cipher: 'AES-256-GCM',
+      iv: hex(iv),
+      ciphertext: hex(ct),
+      public_key: hex(o.publicKey),
+      created_utc: o.created || isoNow(),
+      label: String(o.label === undefined ? '' : o.label),
+    };
+  }
+
+  function hexField(obj, name, nbytes) {
+    const v = obj[name];
+    if (typeof v !== 'string' || !/^[0-9a-f]*$/.test(v) || v.length % 2 || (nbytes && v.length !== 2 * nbytes)) {
+      throw new CoreError('file', 'The key file is damaged ("' + name + '").');
+    }
+    return unhex(v);
+  }
+
+  // Validates the JSON object without the passphrase. Returns what can be shown before unlocking.
+  function inspectKeyFile(obj) {
+    if (!obj || typeof obj !== 'object' || obj.format !== KEYFILE_FORMAT) {
+      throw new CoreError('file', 'This is not an MRM fuel sensor authority key file.');
+    }
+    if (obj.version !== 1) throw new CoreError('file', 'Key file version ' + obj.version + ' is not supported by this tool.');
+    if (obj.kdf !== 'PBKDF2-SHA256' || obj.cipher !== 'AES-256-GCM') throw new CoreError('file', 'The key file uses an unknown encryption.');
+    const it = obj.iterations;
+    if (!Number.isInteger(it) || it < KEYFILE_MIN_ITERATIONS || it > KEYFILE_MAX_ITERATIONS) {
+      throw new CoreError('file', 'The key file has an invalid iteration count.');
+    }
+    const ct = hexField(obj, 'ciphertext');
+    if (ct.length < 17) throw new CoreError('file', 'The key file is damaged ("ciphertext").');
+    if (obj.role !== undefined && obj.role !== 'service') throw new CoreError('file', 'The key file has an unknown role.');
+    return {
+      salt: hexField(obj, 'salt', 16),
+      iv: hexField(obj, 'iv', 12),
+      ciphertext: ct,
+      publicKey: hexField(obj, 'public_key', 32),
+      iterations: it,
+      weak: it < KEYFILE_ITERATIONS,
+      label: typeof obj.label === 'string' ? obj.label : '',
+      created_utc: typeof obj.created_utc === 'string' ? obj.created_utc : '',
+      role: obj.role === 'service' ? 'service' : '',
+    };
+  }
+
+  // Decrypts in memory. Returns { signingKey (non-extractable CryptoKey), publicKey, fingerprint, label, created_utc,
+  // iterations, weak }. The seed and PKCS#8 bytes are wiped before returning.
+  async function decryptKeyFile(obj, passphrase) {
+    const f = inspectKeyFile(obj);
+    const key = await deriveKey(passphrase, f.salt, f.iterations);
+    let der;
+    try {
+      der = new Uint8Array(await subtle().decrypt({ name: 'AES-GCM', iv: f.iv }, key, f.ciphertext));
+    } catch (e) {
+      throw new CoreError('passphrase', 'Wrong passphrase, or the key file is damaged.');
+    }
+    let seed;
+    try {
+      seed = seedFromPkcs8(der);
+    } finally {
+      der.fill(0);
+    }
+    let signingKey;
+    try {
+      signingKey = await importSeed(seed);
+    } finally {
+      seed.fill(0);
+    }
+    if (!(await keyMatches(signingKey, f.publicKey))) {
+      throw new CoreError('mismatch', 'The key file is inconsistent: its public key does not belong to its private key.');
+    }
+    return {
+      signingKey, publicKey: f.publicKey, fingerprint: await fingerprint(f.publicKey),
+      label: f.label, created_utc: f.created_utc, iterations: f.iterations, weak: f.weak, role: f.role,
+    };
+  }
+
+  async function generateKeyPair() {
+    const kp = await subtle().generateKey(ED, true, ['sign', 'verify']);
+    const der = new Uint8Array(await subtle().exportKey('pkcs8', kp.privateKey));
+    let seed;
+    try { seed = seedFromPkcs8(der); } finally { der.fill(0); }
+    const publicKey = new Uint8Array(await subtle().exportKey('raw', kp.publicKey));
+    return { seed, publicKey };
+  }
+
+  // New key: generate, encrypt, then decrypt again to prove the file opens. Returns { file, publicKey, fingerprint }.
+  async function createKeyFile(o) {
+    if (passphraseLength(o.passphrase) < MIN_PASSPHRASE_CHARS) {
+      throw new CoreError('short', 'The passphrase must have at least ' + MIN_PASSPHRASE_CHARS + ' characters.');
+    }
+    const { seed, publicKey } = await generateKeyPair();
+    let file;
+    try {
+      file = await encryptKeyFile({ seed, publicKey, passphrase: o.passphrase, label: o.label, iterations: o.iterations });
+    } finally {
+      seed.fill(0);
+    }
+    const check = await decryptKeyFile(file, o.passphrase);
+    if (!equalBytes(check.publicKey, publicKey)) throw new CoreError('internal', 'Internal error: the new key file does not open.');
+    return { file, publicKey, fingerprint: check.fingerprint };
+  }
+
+  const pubFileText = (pub) => hex(pub) + '\n';
+  const keyFileText = (file) => JSON.stringify(file, null, 2) + '\n';
+
+  // One JSON line for "Save record". No secret is included.
+  function recordLine(o) {
+    const svc = o.kind === 'service';
+    const g = svc ? decodeServiceGrant(o.grant) : decodeGrant(o.grant);
+    return JSON.stringify({
+      record: 'mrm-fuel-authority-response',
+      tool_version: TOOL_VERSION,
+      time_utc: isoNow(o.nowMs),
+      challenge: o.challengeText,
+      device: {
+        mac: o.fields.mac_text, fw_version: o.fields.fw_version_text, ok_count: o.fields.ok_count, fails: o.fields.fails,
+        calibrated: o.fields.calibrated, locked: o.fields.locked, last_ok: o.fields.last_ok, last_known: o.fields.last_known,
+        last_attempt_utc: minutesToIsoUtc(o.fields.last_attempt_min), phone_time_utc: minutesToIsoUtc(o.fields.phone_min),
+        nonce: o.fields.nonce, times_are: 'phone-reported',
+      },
+      kind: svc ? 'service' : 'maintenance',
+      grant: svc ? { byte: o.grant, service: g.service, hours: g.hours }
+        : { byte: o.grant, settings: g.settings, firmware: g.firmware, older: g.older, calibration: g.calibration, hours: g.hours },
+      response: o.responseText,
+      key: { fingerprint: o.keyFingerprint, label: o.keyLabel || '' },
+      note: o.note || '',
+    }) + '\n';
+  }
+
+  function recordFileName(fields, nowMs) {
+    const d = new Date(nowMs + IST_OFFSET_MIN * 60000);
+    const stamp = d.getUTCFullYear() + pad2(d.getUTCMonth() + 1) + pad2(d.getUTCDate()) + '-' + pad2(d.getUTCHours()) + pad2(d.getUTCMinutes());
+    return 'fs-response-' + fields.mac.toUpperCase() + '-' + stamp + '-IST.jsonl';
+  }
+
+  // ================================================================ encrypted report files (webapp/ENCRYPTED_FILE.md)
+  // After a fill the phone app shares a file: the CSV of the reports, encrypted to the customer's REPORT public key (ECDH P-256,
+  // HKDF-SHA256, AES-256-GCM) and written as armored text. This page opens it with the REPORT private key. The encryption adds
+  // confidentiality only. The truth is the signed FR- code in each row; the other CSV columns are a convenience copy that is
+  // checked against it.
+  const REPORT_KEYFILE_FORMAT = 'mrm-fuel-report-key';
+  const ARMOR_LABEL = 'MRM FUEL REPORT';
+  const REPORT_VERSION = 1;
+  const REPORT_HKDF_INFO = 'MRM-FUEL-REPORT-1';
+  const REPORT_HEADER_BYTES = 74;                 // magic "MRMR", version, key id (4), ephemeral public key (65)
+  const REPORT_IV_BYTES = 12;
+  const REPORT_TAG_BYTES = 16;
+  const REPORT_MIN_BYTES = REPORT_HEADER_BYTES + REPORT_IV_BYTES + REPORT_TAG_BYTES;
+  const MAX_TEXT_CHARS = 8e6;                     // more text than any real report file holds
+  const MAX_BLOCKS = 500;
+  const MAX_ROWS = 5000;
+  const ECDH_P256 = { name: 'ECDH', namedCurve: 'P-256' };
+
+  const errInfo = (e) => ({ code: (e && e.code) || 'error', message: e instanceof CoreError ? e.message : 'Unexpected error: ' + (e && e.message || e) });
+
+  // ---- the report key file: the DESIGN 4.4 shape (PBKDF2-SHA256 + AES-256-GCM over the PKCS#8 DER), for a P-256 key.
+  // { format, version 1, kdf, iterations, salt, cipher, iv, ciphertext, public_key (65-byte point, hex), key_id (4 bytes, hex),
+  //   created_utc, label }. key_id = the first 4 bytes of SHA-256 of the public key.
+  function inspectReportKeyFile(obj) {
+    if (!obj || typeof obj !== 'object') throw new CoreError('file', 'This is not an MRM fuel report key file.');
+    if (obj.format === KEYFILE_FORMAT) {
+      throw new CoreError('file', 'This is a login key file, not a report key file. Choose the key file made for opening reports.');
+    }
+    if (obj.format !== REPORT_KEYFILE_FORMAT) throw new CoreError('file', 'This is not an MRM fuel report key file.');
+    if (obj.version !== 1) throw new CoreError('file', 'Key file version ' + obj.version + ' is not supported by this tool.');
+    if (obj.kdf !== 'PBKDF2-SHA256' || obj.cipher !== 'AES-256-GCM') throw new CoreError('file', 'The key file uses an unknown encryption.');
+    const it = obj.iterations;
+    if (!Number.isInteger(it) || it < KEYFILE_MIN_ITERATIONS || it > KEYFILE_MAX_ITERATIONS) {
+      throw new CoreError('file', 'The key file has an invalid iteration count.');
+    }
+    const ct = hexField(obj, 'ciphertext');
+    if (ct.length < 17) throw new CoreError('file', 'The key file is damaged ("ciphertext").');
+    const pub = hexField(obj, 'public_key', 65);
+    if (pub[0] !== 4) throw new CoreError('file', 'The key file is damaged ("public_key").');
+    const keyId = obj.key_id === undefined ? '' : hex(hexField(obj, 'key_id', 4));
+    return {
+      salt: hexField(obj, 'salt', 16), iv: hexField(obj, 'iv', 12), ciphertext: ct, publicKey: pub, keyId, iterations: it,
+      weak: it < KEYFILE_ITERATIONS, label: typeof obj.label === 'string' ? obj.label : '',
+      created_utc: typeof obj.created_utc === 'string' ? obj.created_utc : '',
+    };
+  }
+
+  // Does this ECDH private key belong to that public point? Two key agreements with a throw-away key must give the same secret.
+  async function reportKeyMatches(privateKey, publicRaw) {
+    try {
+      const s = subtle();
+      const eph = await s.generateKey(ECDH_P256, false, ['deriveBits']);
+      const pub = await s.importKey('raw', publicRaw, ECDH_P256, false, []);
+      const a = new Uint8Array(await s.deriveBits({ name: 'ECDH', public: eph.publicKey }, privateKey, 256));
+      const b = new Uint8Array(await s.deriveBits({ name: 'ECDH', public: pub }, eph.privateKey, 256));
+      return equalBytes(a, b);
+    } catch (e) {
+      return false;
+    }
+  }
+  const reportKeyId = async (publicRaw) => hex((await sha256(publicRaw)).subarray(0, 4));
+
+  // Decrypts in memory. Returns { privateKey (non-extractable CryptoKey), publicKey (65 bytes), keyId (8 hex), label, created_utc,
+  // iterations, weak }. The PKCS#8 bytes are wiped before returning.
+  async function decryptReportKeyFile(obj, passphrase) {
+    const f = inspectReportKeyFile(obj);
+    const key = await deriveKey(passphrase, f.salt, f.iterations);
+    let der;
+    try {
+      der = new Uint8Array(await subtle().decrypt({ name: 'AES-GCM', iv: f.iv }, key, f.ciphertext));
+    } catch (e) {
+      throw new CoreError('passphrase', 'Wrong passphrase, or the key file is damaged.');
+    }
+    let privateKey;
+    try {
+      privateKey = await subtle().importKey('pkcs8', der, ECDH_P256, false, ['deriveBits']);
+    } catch (e) {
+      throw new CoreError('key', 'The key inside the file is not a P-256 private key.');
+    } finally {
+      der.fill(0);
+    }
+    if (!(await reportKeyMatches(privateKey, f.publicKey))) {
+      throw new CoreError('mismatch', 'The key file is inconsistent: its public key does not belong to its private key.');
+    }
+    const keyId = await reportKeyId(f.publicKey);
+    if (f.keyId && f.keyId !== keyId) throw new CoreError('file', 'The key file is damaged ("key_id").');
+    return { privateKey, publicKey: f.publicKey, keyId, label: f.label, created_utc: f.created_utc, iterations: f.iterations, weak: f.weak };
+  }
+
+  // ---- armored text -> container bytes (ENCRYPTED_FILE.md section 1)
+  const INVISIBLE = /[\s­​-‏⁠﻿]+/g;     // white space and the invisible characters chat apps leave behind
+  const armorMarker = (word) => new RegExp('-{3,}[ \\t\\u00a0]*' + word + '[ \\t\\u00a0]+([^\\n]*?)[ \\t\\u00a0]*-{3,}', 'gi');
+  const armorLabel = (m) => m[1].replace(INVISIBLE, ' ').trim().toUpperCase();
+  const B64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+  // Standard Base64, padding optional. The caller has checked the shape.
+  function b64decode(s) {
+    s = s.replace(/=+$/, '');
+    const out = new Uint8Array(Math.floor(s.length * 3 / 4));
+    let acc = 0, bits = 0, o = 0;
+    for (let i = 0; i < s.length; i++) {
+      acc = (acc << 6) | B64_ALPHABET.indexOf(s[i]);
+      bits += 6;
+      if (bits >= 8) { bits -= 8; out[o++] = (acc >> bits) & 255; acc &= (1 << bits) - 1; }
+    }
+    return out;
+  }
+
+  // All the reports in a text (the opened file, or text pasted from a chat, one block or several). Tolerates CRLF, wrapped lines,
+  // spaces and invisible characters inside the Base64, markers in any case and any text around the blocks. Throws when the text
+  // holds no MRM fuel report at all ('no_begin' | 'label' | 'too_big'); otherwise returns one entry per block, in order:
+  // { ok: true, bytes } or { ok: false, code: 'no_end' | 'label' | 'empty' | 'base64', message }.
+  function dearmorBlocks(text) {
+    const t = String(text == null ? '' : text).replace(/\r\n?/g, '\n');
+    if (t.length > MAX_TEXT_CHARS) throw new CoreError('too_big', 'That is far more text than a report file holds.');
+    const begins = [...t.matchAll(armorMarker('BEGIN'))];
+    if (!begins.length) {
+      throw new CoreError('no_begin', 'This is not an MRM fuel report: the line "-----BEGIN ' + ARMOR_LABEL + '-----" is missing.');
+    }
+    const ours = begins.filter((m) => armorLabel(m) === ARMOR_LABEL);
+    if (!ours.length) {
+      throw new CoreError('label', 'This is not an MRM fuel report: it is "' + begins[0][1].trim().slice(0, 40) + '", another kind of text.');
+    }
+    if (ours.length > MAX_BLOCKS) throw new CoreError('too_big', 'That text holds more than ' + MAX_BLOCKS + ' reports.');
+    const blocks = [];
+    const bad = (code, message) => blocks.push({ ok: false, code, message });
+    for (let k = 0; k < ours.length; k++) {
+      const start = ours[k].index + ours[k][0].length;
+      const stop = k + 1 < ours.length ? ours[k + 1].index : Infinity;
+      const re = armorMarker('END');
+      re.lastIndex = start;
+      const end = re.exec(t);
+      if (!end || end.index >= stop) {
+        bad('no_end', 'The report is cut short: the line "-----END ' + ARMOR_LABEL + '-----" is missing.');
+        continue;
+      }
+      if (armorLabel(end) !== ARMOR_LABEL) {
+        bad('label', 'The last line says "' + end[1].trim().slice(0, 40) + '" instead of "' + ARMOR_LABEL + '": the text was changed.');
+        continue;
+      }
+      const body = t.slice(start, end.index).replace(INVISIBLE, '');
+      if (!body) { bad('empty', 'The report is empty: there is nothing between its first and last line.'); continue; }
+      if (!/^[A-Za-z0-9+/]+={0,2}$/.test(body) || body.length % 4 === 1 || (body.includes('=') && body.length % 4 !== 0)) {
+        bad('base64', 'The text was damaged on the way (it is not valid Base64). Ask for the file again.');
+        continue;
+      }
+      blocks.push({ ok: true, bytes: b64decode(body) });
+    }
+    return blocks;
+  }
+
+  // ---- container -> CSV text (ENCRYPTED_FILE.md sections 2, 3 and 5)
+  function parseContainer(u8) {
+    if (u8.length < REPORT_MIN_BYTES) throw new CoreError('container', 'This is not an MRM fuel report: the data is too short.');
+    if (u8[0] !== 0x4d || u8[1] !== 0x52 || u8[2] !== 0x4d || u8[3] !== 0x52) {       // "MRMR"
+      throw new CoreError('container', 'This is not an MRM fuel report: its header is wrong.');
+    }
+    if (u8[4] !== REPORT_VERSION) {
+      throw new CoreError('version', 'This report file is version ' + u8[4] + '; this tool reads version ' + REPORT_VERSION + '. Use the latest version of the tool.');
+    }
+    return {
+      version: u8[4], keyId: hex(u8.subarray(5, 9)), eph: u8.subarray(9, REPORT_HEADER_BYTES),
+      header: u8.subarray(0, REPORT_HEADER_BYTES), iv: u8.subarray(REPORT_HEADER_BYTES, REPORT_HEADER_BYTES + REPORT_IV_BYTES),
+      body: u8.subarray(REPORT_HEADER_BYTES + REPORT_IV_BYTES),
+    };
+  }
+
+  // keys: loaded report keys ({ keyId, privateKey, ... }). Returns { csv, keyId }. Errors carry `keyId` (the file's) when known.
+  async function decryptContainer(u8, keys) {
+    const c = parseContainer(u8);
+    const fail = (code, message) => { const e = new CoreError(code, message); e.keyId = c.keyId; return e; };
+    if (!keys || !keys.length) throw fail('no_key', 'No report key is loaded. Choose your report key file first.');
+    const key = keys.find((k) => k.keyId === c.keyId);
+    if (!key) {
+      throw fail('other_key', 'This file is for another key (key id ' + c.keyId + '). The report key loaded here has id ' +
+        keys.map((k) => k.keyId).join(', ') + '. Load the report key with id ' + c.keyId + ', or ask the sender to make the file again.');
+    }
+    const s = subtle();
+    let plain;
+    try {
+      const eph = await s.importKey('raw', c.eph, ECDH_P256, false, []);
+      const secret = await s.deriveBits({ name: 'ECDH', public: eph }, key.privateKey, 256);
+      const hk = await s.importKey('raw', secret, 'HKDF', false, ['deriveBits']);
+      const bits = await s.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(0), info: ascii(REPORT_HKDF_INFO) }, hk, 256);
+      const aes = await s.importKey('raw', bits, { name: 'AES-GCM' }, false, ['decrypt']);
+      plain = new Uint8Array(await s.decrypt({ name: 'AES-GCM', iv: c.iv, additionalData: c.header, tagLength: 128 }, aes, c.body));
+    } catch (e) {
+      throw fail('decrypt', 'The file could not be opened: it is damaged, or it was not made for this key.');
+    }
+    try {
+      return { csv: new TextDecoder('utf-8', { fatal: true }).decode(plain), keyId: c.keyId };
+    } catch (e) {
+      throw fail('text', 'The file was opened, but the text inside is damaged.');
+    }
+  }
+
+  // The text of a file read as bytes: UTF-8 (with or without a byte-order mark) or UTF-16 with a byte-order mark.
+  function decodeTextBytes(u8) {
+    let enc = 'utf-8', start = 0;
+    if (u8.length >= 2 && u8[0] === 0xff && u8[1] === 0xfe) { enc = 'utf-16le'; start = 2; }
+    else if (u8.length >= 2 && u8[0] === 0xfe && u8[1] === 0xff) { enc = 'utf-16be'; start = 2; }
+    else if (u8.length >= 3 && u8[0] === 0xef && u8[1] === 0xbb && u8[2] === 0xbf) start = 3;
+    return new TextDecoder(enc).decode(u8.subarray(start));
+  }
+
+  // ---- the CSV inside (PROTOCOL.md 6.3). Columns are found by NAME, so an older file with fewer columns still opens.
+  const CSV_COLUMNS = ['serial', 'since_reset', 'operator_l', 'sensor_l', 'drained_l', 'level_before_mm', 'level_after_mm', 'lpmm',
+    'phone_start', 'phone_end', 'tz_min', 'duration_s', 'lookback_s', 'gen', 'settings_changes', 'flags',
+    'site_id', 'site_lat', 'site_lon', 'op_lat', 'op_lon', 'moved_m', 'dev_utc_start', 'dev_utc_end', 'line', 'signed_code'];
+
+  // RFC 4180 with the leniency a file that travelled through chats and spreadsheets needs: CRLF, LF or CR line ends, quoted cells
+  // with doubled quotes (a cell may hold commas and line breaks), a byte-order mark, blank lines. Returns { header, index, rows }.
+  function parseCsv(text) {
+    let s = String(text);
+    if (s.charCodeAt(0) === 0xfeff) s = s.slice(1);
+    const all = [];
+    let row = [], cell = '', quoted = false;
+    const endRow = () => { row.push(cell); cell = ''; if (!(row.length === 1 && row[0] === '')) all.push(row); row = []; };
+    for (let i = 0; i < s.length; i++) {
+      const c = s[i];
+      if (quoted) {
+        if (c !== '"') cell += c;
+        else if (s[i + 1] === '"') { cell += '"'; i++; } else quoted = false;
+      } else if (c === '"' && cell === '') quoted = true;
+      else if (c === ',') { row.push(cell); cell = ''; }
+      else if (c === '\r' || c === '\n') { endRow(); if (c === '\r' && s[i + 1] === '\n') i++; }
+      else cell += c;
+    }
+    if (quoted) throw new CoreError('csv', 'The table inside the file is damaged: a quote is never closed.');
+    if (cell !== '' || row.length) endRow();
+    if (!all.length) throw new CoreError('csv', 'The file holds no table.');
+    if (all.length - 1 > MAX_ROWS) throw new CoreError('csv', 'The file holds more than ' + MAX_ROWS + ' reports.');
+    const header = all[0].map((h) => h.trim());
+    const index = new Map();
+    header.forEach((h, i) => { if (!index.has(h)) index.set(h, i); });
+    return { header, index, rows: all.slice(1) };
+  }
+
+  // A decimal number as an integer scaled by 10^dec, exactly, or NaN: "50", "50.0" and "50.00" are all 5000 at dec 2, "50.004" is NaN.
+  function scaledDecimal(text, dec) {
+    const m = /^([+-]?)(\d{1,16})(?:\.(\d{1,16}))?$/.exec(text);
+    if (!m) return NaN;
+    const frac = m[3] || '';
+    if (frac.length > dec && /[1-9]/.test(frac.slice(dec))) return NaN;
+    const n = Number(m[2] + (frac + '0'.repeat(dec)).slice(0, dec));
+    if (!Number.isSafeInteger(n)) return NaN;
+    return m[1] === '-' && n !== 0 ? -n : n;
+  }
+  function scaledText(v, dec) {
+    if (v === null) return '(empty)';
+    const a = String(Math.abs(v)).padStart(dec + 1, '0');
+    return (v < 0 ? '-' : '') + (dec ? a.slice(0, -dec) + '.' + a.slice(-dec) : a);
+  }
+
+  // What the SIGNED report says for each CSV column: { dec, v } (v: the value scaled by 10^dec, or null for "no value"), or
+  // { text }. A format 1 report signs nothing about the site, the positions, the distance or the sensor clock: null / ''.
+  function signedColumns(f) {
+    const x2 = f.format >= 2;
+    const n = (dec, v) => ({ dec, v });
+    return {
+      serial: n(0, f.serial), since_reset: n(0, f.since_reset),
+      operator_l: n(2, f.operator_cl === 0xffffffff ? null : f.operator_cl), sensor_l: n(2, f.sensor_cl), drained_l: n(2, f.drained_cl),
+      level_before_mm: n(2, f.level_before), level_after_mm: n(2, f.level_after), lpmm: n(6, f.lpmm_ul),
+      phone_start: n(0, f.phone_start), phone_end: n(0, f.phone_end), tz_min: n(0, f.tz_min), duration_s: n(0, f.duration_s),
+      lookback_s: n(0, f.lookback_s), gen: n(0, f.gen), settings_changes: n(0, f.settings_changes), flags: n(0, f.flags),
+      site_id: { text: x2 ? f.site_id : '' },
+      site_lat: n(6, x2 ? f.site_lat_ud : null), site_lon: n(6, x2 ? f.site_lon_ud : null),
+      op_lat: n(6, x2 ? f.op_lat_ud : null), op_lon: n(6, x2 ? f.op_lon_ud : null),
+      moved_m: n(0, x2 ? f.moved_m : null),
+      dev_utc_start: n(0, x2 ? f.dev_utc_start : null), dev_utc_end: n(0, x2 ? f.dev_utc_end : null),
+    };
+  }
+  // For these columns an empty cell and 0 both mean "no time".
+  const ZERO_IS_NONE = new Set(['phone_start', 'phone_end', 'dev_utc_start', 'dev_utc_end']);
+  const shorten = (s) => (s.length > 60 ? s.slice(0, 57) + '...' : s);
+
+  // The readable line is informational (PROTOCOL.md 6.2): only what it states and the signed report contradicts counts.
+  function lineDisagrees(line, f) {
+    const wrong = [];
+    const ser = /#(\d+)/.exec(line);
+    if (ser && Number(ser[1]) !== f.serial) wrong.push('report number');
+    const mac = /PROCOM-SENSOR-([0-9A-Fa-f]{12})/.exec(line);
+    if (mac && mac[1].toUpperCase() !== f.mac) wrong.push('sensor');
+    const litres = (word, cl, notEntered) => {
+      const m = new RegExp(' \\u00b7 ' + word + ' (not entered|(\\d+(?:\\.\\d+)?) L)').exec(line);   // (anchored on the separator: a site ID may say "sensor 9 L")
+      if (!m) return;
+      if (m[1] === 'not entered') { if (!notEntered) wrong.push(word + ' litres'); return; }
+      if (notEntered || Math.abs(Math.round(parseFloat(m[2]) * 100) - cl) > 5) wrong.push(word + ' litres');
+    };
+    litres('operator', f.operator_cl, f.operator_cl === 0xffffffff);
+    litres('sensor', f.sensor_cl, false);
+    return wrong;
+  }
+
+  // Every CSV column of one row that disagrees with the signed report f: [{ column, csv, signed }]. Columns the file does not have
+  // are skipped. `signed_code` is the report itself.
+  function csvMismatches(table, cells, f) {
+    const out = [];
+    const sc = signedColumns(f);
+    for (const column of CSV_COLUMNS) {
+      const i = table.index.get(column);
+      if (i === undefined || i >= cells.length || column === 'signed_code') continue;
+      const raw = cells[i];
+      if (column === 'line') {
+        const wrong = lineDisagrees(raw, f);
+        if (wrong.length) out.push({ column, csv: shorten(raw), signed: 'the ' + wrong.join(' and the ') + ' in the line differ from ' + fillLine(f) });
+        continue;
+      }
+      const spec = sc[column];
+      if (spec.text !== undefined) {
+        const t = /^'[=+\-@\t\r]/.test(raw) ? raw.slice(1) : raw;        // the writer's spreadsheet guard
+        if (t !== spec.text) out.push({ column, csv: raw === '' ? '(empty)' : shorten(raw), signed: spec.text === '' ? '(empty)' : spec.text });
+        continue;
+      }
+      const cell = raw.trim();
+      let same;
+      if (ZERO_IS_NONE.has(column)) {
+        const want = spec.v || 0;
+        same = (cell === '' ? 0 : scaledDecimal(cell, 0)) === want;
+      } else if (cell === '') same = spec.v === null;
+      else same = spec.v !== null && scaledDecimal(cell, spec.dec) === spec.v;
+      if (!same) out.push({ column, csv: cell === '' ? '(empty)' : shorten(cell), signed: scaledText(spec.v, spec.dec) });
+    }
+    return out;
+  }
+
+  // ---- opening files: the whole path from text to a checked list of reports
+  // One row of the CSV -> a report: its signed code decoded and verified, what IT is shown, and the CSV columns that disagree.
+  // verdict: 'genuine' | 'invalid' | 'unknown_key' | 'unreadable'.
+  async function checkRow(table, cells, fillKeys) {
+    const rep = { id: 0, source: '', block: 0, row: 0, code: '', verdict: 'unreadable', message: '', fields: null, facts: [], warnings: [],
+      line: '', mismatches: [], seen: '', payload_hex: '', notes: [] };
+    if (cells.length !== table.header.length) {
+      rep.notes.push({ level: 'warn', text: 'This row has ' + cells.length + ' cells, the header has ' + table.header.length + '. The table may be damaged.' });
+    }
+    const ci = table.index.get('signed_code');
+    const raw = ci === undefined || ci >= cells.length ? '' : cells[ci];
+    if (!raw.trim()) {
+      rep.message = 'This row has no signed code, so nothing in it can be trusted.';
+      return rep;
+    }
+    rep.code = raw.trim();
+    let d;
+    try {
+      d = decodeFill(raw);
+    } catch (e) {
+      rep.message = 'The signed code cannot be read. ' + (e instanceof CoreError ? e.message : String(e));
+      return rep;
+    }
+    let v;
+    try { v = await verifyFill(d, fillKeys); } catch (e) { v = { ok: false, code: 'error', detail: String(e && e.message || e) }; }
+    const f = d.fields;
+    const a = analyseFill(f);
+    rep.fields = f;
+    rep.facts = a.rows;
+    rep.warnings = a.warnings;
+    rep.line = fillLine(f);
+    rep.payload_hex = hex(d.payload);
+    if (v.ok) {
+      rep.verdict = 'genuine';
+      rep.mismatches = csvMismatches(table, cells, f);
+    } else if (v.code === 'unknown_key') {
+      rep.verdict = 'unknown_key';
+      rep.message = 'This tool does not have the public key this report names (key ' + f.key_id + '). Update the tool.';
+    } else {
+      rep.verdict = 'invalid';
+      rep.message = v.code === 'error' ? 'The browser could not check the signature: ' + v.detail
+        : 'The signature does not match the content. Do not accept these figures; ask for the report again.';
+    }
+    return rep;
+  }
+
+  // Merges two "numbers seen" records (MAC -> serial -> payload hex); a number already in a keeps its payload.
+  function mergeSeen(a, b) {
+    const out = {};
+    for (const src of [a, b]) {
+      for (const mac of Object.keys(src || {})) {
+        if (mac !== '__proto__') out[mac] = Object.assign({}, src[mac], out[mac]);
+      }
+    }
+    return out;
+  }
+
+  // sources: [{ name, text }] (files, or the pasted text). o: { keys: loaded report keys, fillKeys, rec: numbers seen so far }.
+  // Returns { sources: [{ name, error, blocks: [{ n, error, key_id, notices, reports }] }], reports, gaps: [{ mac, ranges }], rec, counts }.
+  // Duplicates and gaps are by the lifetime serial, per sensor, across everything in rec and in these sources.
+  async function openReports(sources, o) {
+    const opts = o || {};
+    const keys = opts.keys || [];
+    const fillKeys = opts.fillKeys || FILL_KEYS;
+    const out = { sources: [], reports: [], gaps: [], rec: opts.rec || {}, counts: null };
+    for (const src of sources) {
+      const entry = { name: src.name || '', error: null, blocks: [] };
+      out.sources.push(entry);
+      if (src.error) { entry.error = { code: 'read', message: src.error }; continue; }
+      let blocks;
+      try { blocks = dearmorBlocks(src.text); } catch (e) { entry.error = errInfo(e); continue; }
+      for (let bi = 0; bi < blocks.length; bi++) {
+        const be = { n: bi + 1, error: null, key_id: '', notices: [], reports: 0 };
+        entry.blocks.push(be);
+        if (!blocks[bi].ok) { be.error = { code: blocks[bi].code, message: blocks[bi].message }; continue; }
+        let opened, table;
+        try {
+          opened = await decryptContainer(blocks[bi].bytes, keys);
+          be.key_id = opened.keyId;
+          table = parseCsv(opened.csv);
+        } catch (e) {
+          be.error = errInfo(e);
+          be.key_id = be.key_id || (e && e.keyId) || '';
+          continue;
+        }
+        if (!table.index.has('signed_code')) {
+          be.error = { code: 'no_signed_code', message: 'The table inside the file has no signed_code column, so nothing in it can be verified.' };
+          continue;
+        }
+        const missing = CSV_COLUMNS.filter((c) => !table.index.has(c));
+        const extra = table.header.filter((h) => h && !CSV_COLUMNS.includes(h));
+        if (missing.length) {
+          be.notices.push({ level: 'info', text: 'The table has no ' + missing.join(', ') + ' column' + (missing.length > 1 ? 's' : '') +
+            ' (an older phone app?). Everything shown below comes from the signed codes.' });
+        }
+        if (extra.length) be.notices.push({ level: 'info', text: 'The table has columns this tool does not know (' + extra.join(', ') + '). They are ignored.' });
+        if (!table.rows.length) be.notices.push({ level: 'warn', text: 'The file contains no reports.' });
+        for (let ri = 0; ri < table.rows.length; ri++) {
+          const rep = await checkRow(table, table.rows[ri], fillKeys);
+          rep.id = out.reports.length + 1;
+          rep.source = entry.name;
+          rep.block = be.n;
+          rep.row = ri + 1;
+          out.reports.push(rep);
+          be.reports++;
+        }
+      }
+    }
+    // duplicates and gaps: oldest first within each sensor, so the answer does not depend on the order in the file
+    const genuine = out.reports.map((r, i) => i).filter((i) => out.reports[i].verdict === 'genuine');
+    genuine.sort((a, b) => {
+      const x = out.reports[a].fields, y = out.reports[b].fields;
+      return x.mac < y.mac ? -1 : x.mac > y.mac ? 1 : (x.serial - y.serial) || (a - b);
+    });
+    let rec = out.rec;
+    const gapsOf = {};
+    for (const i of genuine) {
+      const r = out.reports[i];
+      const s = fillSeenCheck(rec, r.fields, r.payload_hex);
+      r.seen = s.status;
+      rec = s.rec;
+      gapsOf[r.fields.mac] = s.missing;
+    }
+    out.rec = rec;
+    out.gaps = Object.keys(gapsOf).filter((mac) => gapsOf[mac].length).map((mac) => ({ mac, ranges: gapsOf[mac] }));
+    const count = (fn) => out.reports.filter(fn).length;
+    out.counts = {
+      total: out.reports.length, genuine: count((r) => r.verdict === 'genuine'), invalid: count((r) => r.verdict === 'invalid'),
+      unknown_key: count((r) => r.verdict === 'unknown_key'), unreadable: count((r) => r.verdict === 'unreadable'),
+      mismatched: count((r) => r.mismatches.length > 0), duplicate: count((r) => r.seen === 'duplicate'),
+      conflict: count((r) => r.seen === 'conflict'),
+    };
+    return out;
+  }
+
+  // ---- the decoded CSV for download: only what the signed codes say (a report that did not verify has its figures left empty)
+  const DECODED_COLUMNS = ['source', 'serial', 'since_reset', 'verdict', 'seen', 'csv_mismatch', 'sensor_mac', 'site_id', 'firmware',
+    'report_format', 'start_phone', 'end_phone', 'start_sensor_clock', 'end_sensor_clock', 'clock_diff_start_s', 'clock_diff_end_s',
+    'duration_s', 'operator_l', 'sensor_l', 'difference_l', 'difference_pct', 'drained_l', 'level_before_mm', 'level_after_mm',
+    'litres_per_mm', 'site_lat', 'site_lon', 'operator_lat', 'operator_lon', 'site_operator_distance_m', 'moved_m', 'flags',
+    'warnings', 'signed_code'];
+  const isoUtc = (u) => new Date(u * 1000).toISOString().replace('.000Z', 'Z');
+  function isoLocal(u, tz) {
+    const d = new Date((u + tz * 60) * 1000);
+    const a = Math.abs(tz);
+    return d.getUTCFullYear() + '-' + pad2(d.getUTCMonth() + 1) + '-' + pad2(d.getUTCDate()) + 'T' + pad2(d.getUTCHours()) + ':' +
+      pad2(d.getUTCMinutes()) + ':' + pad2(d.getUTCSeconds()) + (tz < 0 ? '-' : '+') + pad2(Math.floor(a / 60)) + ':' + pad2(a % 60);
+  }
+  // A text cell: always quoted; one a spreadsheet would run as a formula gets a leading apostrophe.
+  const csvText = (s) => '"' + String(/^[=+\-@\t\r]/.test(String(s)) ? "'" + s : s).replace(/"/g, '""') + '"';
+
+  function decodedCsv(result) {
+    const lines = [DECODED_COLUMNS.join(',')];
+    for (const r of result.reports) {
+      const c = {};
+      for (const k of DECODED_COLUMNS) c[k] = '';
+      const f = r.fields;
+      c.source = csvText(r.source);
+      c.verdict = csvText(r.verdict);
+      c.signed_code = r.code ? csvText(r.code) : '';
+      if (r.verdict === 'genuine') {
+        const tz = f.tz_min, x2 = f.format >= 2;
+        const noOp = f.operator_cl === 0xffffffff;
+        const sp = x2 ? position(f.site_lat_ud, f.site_lon_ud) : { state: 'none' };
+        const op = x2 ? position(f.op_lat_ud, f.op_lon_ud) : { state: 'none' };
+        c.serial = f.serial;
+        c.since_reset = f.since_reset;
+        if (r.seen) c.seen = csvText(r.seen);
+        if (r.mismatches.length) c.csv_mismatch = csvText(r.mismatches.map((m) => m.column).join(';'));
+        c.sensor_mac = csvText(f.mac);
+        if (f.site_id) c.site_id = csvText(f.site_id);
+        c.firmware = csvText(fwVersionText(f.fw_version));
+        c.report_format = f.format;
+        if (f.phone_start) c.start_phone = csvText(isoLocal(f.phone_start, tz));
+        if (f.phone_end) c.end_phone = csvText(isoLocal(f.phone_end, tz));
+        if (f.dev_utc_start) c.start_sensor_clock = csvText(isoUtc(f.dev_utc_start));
+        if (f.dev_utc_end) c.end_sensor_clock = csvText(isoUtc(f.dev_utc_end));
+        if (f.dev_utc_start && f.phone_start) c.clock_diff_start_s = f.dev_utc_start - f.phone_start;
+        if (f.dev_utc_end && f.phone_end) c.clock_diff_end_s = f.dev_utc_end - f.phone_end;
+        c.duration_s = f.duration_s;
+        if (!noOp) c.operator_l = (f.operator_cl / 100).toFixed(2);
+        c.sensor_l = (f.sensor_cl / 100).toFixed(2);
+        if (!noOp) {
+          c.difference_l = ((f.sensor_cl - f.operator_cl) / 100).toFixed(2);
+          if (f.operator_cl > 0) c.difference_pct = (100 * (f.sensor_cl - f.operator_cl) / f.operator_cl).toFixed(1);
+        }
+        c.drained_l = (f.drained_cl / 100).toFixed(2);
+        c.level_before_mm = (f.level_before / 100).toFixed(2);
+        c.level_after_mm = (f.level_after / 100).toFixed(2);
+        c.litres_per_mm = (f.lpmm_ul / 1e6).toFixed(6);
+        if (sp.state === 'ok') { c.site_lat = sp.lat_text; c.site_lon = sp.lon_text; }
+        if (op.state === 'ok') { c.operator_lat = op.lat_text; c.operator_lon = op.lon_text; }
+        if (sp.state === 'ok' && op.state === 'ok') c.site_operator_distance_m = Math.round(distanceM(sp, op));
+        if (x2 && f.moved_m !== null) c.moved_m = f.moved_m;
+        c.flags = f.flags;
+        if (r.warnings.length) c.warnings = csvText(r.warnings.join('; '));
+      } else if (r.message) {
+        c.warnings = csvText(r.message);
+      }
+      lines.push(DECODED_COLUMNS.map((k) => c[k]).join(','));
+    }
+    return lines.map((l) => l + '\r\n').join('');
+  }
+  function decodedCsvName(nowMs) {
+    const d = new Date(nowMs + IST_OFFSET_MIN * 60000);
+    return 'fuel-reports-decoded_' + d.getUTCFullYear() + pad2(d.getUTCMonth() + 1) + pad2(d.getUTCDate()) + '-' + pad2(d.getUTCHours()) +
+      pad2(d.getUTCMinutes()) + '-IST.csv';
+  }
+
+  return {
+    TOOL_VERSION, ALPHABET, CHALLENGE_BYTES, RESPONSE_BYTES, CHALLENGE_FORMAT, RESPONSE_DOMAIN, SERVICE_DOMAIN, EPOCH_2025_UNIX,
+    KEYFILE_FORMAT, KEYFILE_ITERATIONS, MIN_PASSPHRASE_CHARS, CoreError,
+    hex, unhex, equalBytes, crc16, symbolsFor, b32encode, cleanSymbols, b32decodeSymbols, b32decode, groupSymbols,
+    fwVersionText, unpackChallenge, challengeText, decodeChallenge,
+    minutesToIsoUtc, formatIST, formatAgo, describeChallenge,
+    grantByte, decodeGrant, describeGrant, serviceGrantByte, decodeServiceGrant, describeServiceGrant,
+    responseMessage, responseText, decodeResponse,
+    pkcs8FromSeed, seedFromPkcs8, sha256, fingerprint, importSeed, signResponse, verifyResponse, checkSupport,
+    passphraseLength, encryptKeyFile, inspectKeyFile, decryptKeyFile, generateKeyPair, createKeyFile,
+    pubFileText, keyFileText, recordLine, recordFileName,
+    FILL_DOMAIN, FILL_KEYS, FILL_CODE_BYTES, FILL_PAYLOADS, FILL_FLAG_TABLE, NO_COORD, MOVED_UNKNOWN, MOVED_SATURATED, MOVED_FAR_M,
+    SITE_FAR_M, CLOCK_WARN_S, OSM_LINK, unpackFill, decodeFill, fillMessage, verifyFill, fillLine, describeFill, analyseFill,
+    fillWarnings, fillFlags, fillFigures, litresText, position, distanceM, distanceText, osmLink, clockText, spanText, fillSeenCheck,
+    mergeSeen,
+    REPORT_KEYFILE_FORMAT, ARMOR_LABEL, REPORT_HKDF_INFO, CSV_COLUMNS, DECODED_COLUMNS, inspectReportKeyFile, decryptReportKeyFile,
+    reportKeyId, b64decode, dearmorBlocks, parseContainer, decryptContainer, decodeTextBytes, parseCsv, scaledDecimal,
+    signedColumns, csvMismatches, openReports, decodedCsv, decodedCsvName,
+  };
+})();
+/* END CORE */
+
+/* UI: everything below touches the page. */
+(function () {
+  'use strict';
+  const C = FSCore;
+  const $ = (id) => document.getElementById(id);
+  const state = { key: null, challenge: null, response: null };
+
+  // BUILT_IN_KEY_FILE / BUILT_IN_KEY_PASSPHRASE: baked into a distributed copy of this page by
+  // authority/tools/bake_key.py, from the sensors' maintenance key (firmware/keys/private/customer_test.{key.json,
+  // passphrase}). This committed copy carries no secret (both null); the page then shows "Key not available".
+  const BUILT_IN_KEY_FILE = /*BAKE KEY_FILE*/{"format": "mrm-fuel-authority-key", "version": 1, "kdf": "PBKDF2-SHA256", "iterations": 600000, "salt": "03f5e696c9350c0877c40673cfa376a0", "cipher": "AES-256-GCM", "iv": "fe7803d119ddb3319c9715ca", "ciphertext": "6419a6f34ac27bf4c556d5c61e0d123f138a8a735e6c43601e623363f0979c50ea2732ffe9552a671e57cf1b72f2f1af2c8b35167545ff9efabed10e570aaea1", "public_key": "a07e66312833e261629345185886f15fe5efc6e442e19564a5ccbfa52bbf176b", "created_utc": "2026-10-13T10:06:48Z", "label": "TEST customer authority key A (lab-made stand-in, not the customer's key)"}/*END BAKE*/;
+  const BUILT_IN_KEY_PASSPHRASE = /*BAKE KEY_PASSPHRASE*/"fY_xG153F17yzToHNVal3Eqz"/*END BAKE*/;
+  // The same for the REPORT key that opens the encrypted report files (a P-256 key file made by tools/keygen_report.mjs):
+  // baked in by tools/bake_key.py --report-key, or chosen by the user on the "Open report file" tab. Both null here.
+  const BUILT_IN_REPORT_KEY_FILE = /*BAKE REPORT_KEY_FILE*/null/*END BAKE*/;
+  const BUILT_IN_REPORT_KEY_PASSPHRASE = /*BAKE REPORT_KEY_PASSPHRASE*/null/*END BAKE*/;
+
+  function setMsg(el, text, level) {
+    el.textContent = text || '';
+    el.className = el.className.replace(/\b(ok|warn|bad|info)\b/g, '').trim() + (level ? ' ' + level : '');
+  }
+
+  // ---------------------------------------------------------------- tabs
+  const tabs = Array.from(document.querySelectorAll('[role="tab"]'));
+  function selectTab(tab, focus) {
+    for (const t of tabs) {
+      const on = t === tab;
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      t.tabIndex = on ? 0 : -1;
+      $(t.getAttribute('aria-controls')).hidden = !on;
+    }
+    if (focus) tab.focus();
+  }
+  tabs.forEach((t, i) => {
+    t.addEventListener('click', () => selectTab(t, false));
+    t.addEventListener('keydown', (e) => {
+      let j = null;
+      if (e.key === 'ArrowRight') j = (i + 1) % tabs.length;
+      else if (e.key === 'ArrowLeft') j = (i - 1 + tabs.length) % tabs.length;
+      else if (e.key === 'Home') j = 0;
+      else if (e.key === 'End') j = tabs.length - 1;
+      if (j !== null) { e.preventDefault(); selectTab(tabs[j], true); }
+    });
+  });
+
+  // ---------------------------------------------------------------- helpers: copy and download
+  function download(name, text, type) {
+    const url = URL.createObjectURL(new Blob([text], { type: type || 'application/octet-stream' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+  }
+
+  function selectContents(el) {
+    const r = document.createRange();
+    r.selectNodeContents(el);
+    const s = window.getSelection();
+    s.removeAllRanges();
+    s.addRange(r);
+  }
+
+  async function copyText(text, sourceEl, msgEl) {
+    let ok = false;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        ok = true;
+      }
+    } catch (e) { ok = false; }
+    if (!ok) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.top = '0';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      ta.remove();
+    }
+    if (ok) {
+      setMsg(msgEl, 'Copied.', '');
+    } else {
+      selectContents(sourceEl);
+      setMsg(msgEl, 'Copy is blocked here. The text is selected: press Ctrl+C (Cmd+C on a Mac) or long-press to copy.', '');
+    }
+    setTimeout(() => { if (ok) msgEl.textContent = ''; }, 4000);
+  }
+
+  const el = (tag, cls, text) => {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  };
+
+  // Rows from C.describeFill into a <dl class="facts">. Text only (textContent); the one link is the map link C.osmLink made from
+  // validated numbers, shown as its own text and opened by the user's click in a new tab with no referrer.
+  function appendFactRows(dl, rows) {
+    for (const r of rows) {
+      const dt = el('dt', '', r.label);
+      const dd = el('dd', r.level || '');
+      dd.appendChild(el('span', 'value' + (r.id === 'mac' ? ' mono' : ''), r.value));
+      if (r.note) dd.appendChild(el('span', 'note', r.note));
+      if (r.link) {
+        const a = el('a', 'maplink', r.link);
+        a.href = r.link;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        dd.appendChild(a);
+      }
+      dl.append(dt, dd);
+    }
+  }
+
+  // ---------------------------------------------------------------- verify fill report (DESIGN 14)
+  /* BEGIN FILL SEEN */
+  // The page's only browser storage: the fill-report numbers verified here, per sensor (duplicates and gaps).
+  const FILL_SEEN_KEY = 'mrm-fill-seen';
+  function seenLoad() { try { return JSON.parse(localStorage.getItem(FILL_SEEN_KEY) || '{}') || {}; } catch (e) { return {}; } }
+  function seenSave(rec) { try { localStorage.setItem(FILL_SEEN_KEY, JSON.stringify(rec)); } catch (e) { /* not kept */ } }
+  function seenClear() { try { localStorage.removeItem(FILL_SEEN_KEY); } catch (e) { /* nothing kept */ } }
+  /* END FILL SEEN */
+  // The report on screen now: re-rendering the SAME input (a keystroke, extra spaces) is not a "duplicate". Clearing the box or
+  // checking another report forgets it, so the same report pasted again later IS reported as a duplicate.
+  let fillLast = null;                   // { key: payload hex, r: its seen-check }
+  let fillSeq = 0;
+  function gapText(m) {
+    return m.map(([a, b]) => (a === b ? 'report #' + a : 'reports #' + a + '\u2013#' + b)).join(', ');
+  }
+  async function onFillInput() {
+    const seq = ++fillSeq;
+    const text = $('fillIn').value;
+    $('fillOut').hidden = true;
+    if (!text.trim()) { fillLast = null; setMsg($('fillMsg'), '', ''); return; }
+    let d;
+    try {
+      d = C.decodeFill(text);
+    } catch (err) {
+      fillLast = null;
+      setMsg($('fillMsg'), err instanceof C.CoreError ? 'Not a valid fill report. ' + err.message : String(err), 'bad');
+      return;
+    }
+    let v;
+    try { v = await C.verifyFill(d); } catch (err) { v = { ok: false, code: 'error', detail: String(err && err.message || err) }; }
+    if (seq !== fillSeq) return;
+    setMsg($('fillMsg'), '', '');
+    const f = d.fields;
+    const box = $('fillVerdict');
+    box.textContent = '';
+    const h = document.createElement('h2');
+    const p = document.createElement('p');
+    if (v.ok) {
+      box.className = 'banner ok';
+      h.textContent = 'Genuine: signed by the sensor';
+      p.textContent = C.fillLine(f);
+    } else {
+      box.className = 'banner bad';
+      h.textContent = v.code === 'unknown_key' ? 'Not verifiable: unknown key ' + f.key_id : 'Invalid or tampered';
+      p.textContent = v.code === 'unknown_key' ? 'This tool does not have the public key this report names. Update the tool.'
+        : v.code === 'error' ? 'The browser could not check the signature: ' + v.detail
+          : 'The signature does not match the content. Do not accept these figures; ask for the report again.';
+    }
+    box.append(h, p);
+    if (v.ok) {
+      const key = C.hex(d.payload);
+      let r = fillLast && fillLast.key === key ? fillLast.r : null;
+      if (!r) {
+        r = C.fillSeenCheck(seenLoad(), f, key);
+        if (r.status === 'new') seenSave(r.rec);
+        fillLast = { key, r };
+      }
+      const parts = [];
+      let level = 'ok';
+      if (r.status === 'duplicate') {
+        parts.push('Duplicate: report #' + f.serial + ' of this sensor was already verified in this browser.');
+        level = 'warn';
+      } else if (r.status === 'conflict') {
+        parts.push('Conflict: a DIFFERENT report #' + f.serial + ' of this sensor was verified before. Investigate.');
+        level = 'bad';
+      } else {
+        parts.push('First check of report #' + f.serial + ' of this sensor in this browser.');
+      }
+      if (r.missing.length) {
+        parts.push('Gap: ' + gapText(r.missing) + ' of this sensor not verified here (missing or not sent yet).');
+        if (level === 'ok') level = 'warn';
+      }
+      setMsg($('fillSeen'), parts.join(' '), level);
+    } else {
+      fillLast = null;
+      setMsg($('fillSeen'), '', '');
+    }
+    const dl = $('fillFacts');
+    dl.textContent = '';
+    appendFactRows(dl, C.describeFill(f));
+    $('fillOut').hidden = false;
+  }
+  $('fillIn').addEventListener('input', onFillInput);
+  $('fillForget').addEventListener('click', () => {
+    seenClear();
+    fillLast = null;
+    setMsg($('fillSeen'), 'Forgotten. The next check starts a new record.', 'ok');
+  });
+
+  // ---------------------------------------------------------------- open report files (webapp/ENCRYPTED_FILE.md)
+  const MAX_FILE_BYTES = 8 * 1000 * 1000;
+  // keys: the report keys unlocked in this page. sources: what is open now ([{ name, text, error? }]); kind: 'files' or 'text'.
+  // baseRec: the report numbers seen before this "session" began. A session starts when files are opened or text is first pasted
+  // and ends at Clear or Forget, so editing the pasted text, or loading another key, does not turn a report on screen into a
+  // "duplicate", but opening or pasting it again later does.
+  const rep = { keys: [], pending: null, sources: null, kind: '', baseRec: null, last: null, seq: 0 };
+
+  function refreshRepKeys() {
+    const badge = $('repKeyBadge');
+    const have = rep.keys.length > 0;
+    badge.textContent = have ? 'Report key ready' : 'No report key loaded';
+    badge.classList.toggle('on', have);
+    if (have) {
+      setMsg($('repKeyMsg'), 'Report key ready: ' + rep.keys.map((k) => 'id ' + k.keyId + (k.label ? ' (' + k.label + ')' : '')).join(', ') + '.', 'ok');
+    } else if (rep.pending) {
+      setMsg($('repKeyMsg'), 'This copy of the page holds your report key. Type its passphrase below to unlock it.', 'warn');
+    } else {
+      setMsg($('repKeyMsg'), 'No report key is loaded. Choose your report key file below, then open the report file.', 'warn');
+    }
+  }
+  function addReportKey(k) {
+    if (!rep.keys.some((x) => x.keyId === k.keyId)) rep.keys.push(k);
+    refreshRepKeys();
+  }
+  async function loadBuiltinReportKey() {
+    if (!BUILT_IN_REPORT_KEY_FILE) return;
+    if (!BUILT_IN_REPORT_KEY_PASSPHRASE) { rep.pending = BUILT_IN_REPORT_KEY_FILE; $('repKeyBox').open = true; return; }
+    try { addReportKey(await C.decryptReportKeyFile(BUILT_IN_REPORT_KEY_FILE, BUILT_IN_REPORT_KEY_PASSPHRASE)); } catch (err) { /* shown as "no report key" */ }
+  }
+  $('repKeyLoad').addEventListener('click', async () => {
+    const msg = $('repKeyLoadMsg');
+    const file = $('repKeyFile').files[0];
+    const pass = $('repKeyPass').value;
+    if (!file && !rep.pending) { setMsg(msg, 'Choose the key file first.', 'bad'); return; }
+    if (!pass) { setMsg(msg, 'Type the passphrase.', 'bad'); return; }
+    $('repKeyLoad').disabled = true;
+    setMsg(msg, 'Unlocking...', 'info');
+    try {
+      const obj = file ? JSON.parse(await file.text()) : rep.pending;
+      addReportKey(await C.decryptReportKeyFile(obj, pass));
+      if (!file) rep.pending = null;
+      $('repKeyPass').value = '';
+      $('repKeyFile').value = '';
+      setMsg(msg, 'Key unlocked.', 'ok');
+      refreshRepKeys();
+      if (rep.sources) runReports();
+    } catch (err) {
+      setMsg(msg, err instanceof C.CoreError ? err.message : 'This is not a key file this tool can read.', 'bad');
+    } finally {
+      $('repKeyLoad').disabled = false;
+    }
+  });
+
+  async function readSource(file) {
+    if (file.size > MAX_FILE_BYTES) return { name: file.name, text: '', error: 'This file is far too big to be a report file.' };
+    try {
+      return { name: file.name, text: C.decodeTextBytes(new Uint8Array(await file.arrayBuffer())) };
+    } catch (err) {
+      return { name: file.name, text: '', error: 'This file could not be read.' };
+    }
+  }
+  async function openFiles(files) {
+    $('repText').value = '';
+    rep.kind = 'files';
+    rep.baseRec = null;
+    setMsg($('repMsg'), 'Reading...', 'info');
+    const sources = [];
+    for (const f of files) sources.push(await readSource(f));
+    $('repFile').value = '';                     // so that choosing the same file again opens it again
+    rep.sources = sources;
+    runReports();
+  }
+  $('repFile').addEventListener('change', () => {
+    const files = Array.from($('repFile').files || []);
+    if (files.length) openFiles(files);
+  });
+  $('repText').addEventListener('input', () => {
+    $('repFile').value = '';
+    const text = $('repText').value;
+    if (rep.kind !== 'text' || !text.trim()) rep.baseRec = null;
+    rep.kind = text.trim() ? 'text' : '';
+    rep.sources = text.trim() ? [{ name: '', text }] : null;
+    runReports();
+  });
+  $('repClear').addEventListener('click', () => {
+    $('repText').value = '';
+    $('repFile').value = '';
+    rep.kind = '';
+    rep.baseRec = null;
+    rep.sources = null;
+    runReports();
+  });
+  // A file dropped anywhere on the page opens as a report file; a drop must never navigate away from the page.
+  const hasFiles = (e) => !!(e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files'));
+  window.addEventListener('dragover', (e) => { if (hasFiles(e)) { e.preventDefault(); $('repDrop').classList.add('over'); } });
+  window.addEventListener('dragleave', (e) => { if (e.target === document.documentElement || !e.relatedTarget) $('repDrop').classList.remove('over'); });
+  window.addEventListener('drop', (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    $('repDrop').classList.remove('over');
+    const files = Array.from(e.dataTransfer.files || []);
+    if (files.length) { selectTab($('tab-reports'), false); openFiles(files); }
+  });
+
+  async function runReports() {
+    const seq = ++rep.seq;
+    const sources = rep.sources;
+    if (!sources) {
+      rep.last = null;
+      rep.baseRec = null;
+      $('repOut').hidden = true;
+      setMsg($('repMsg'), '', '');
+      return;
+    }
+    if (rep.baseRec === null) rep.baseRec = seenLoad();
+    setMsg($('repMsg'), 'Checking...', 'info');
+    let result;
+    try {
+      result = await C.openReports(sources, { keys: rep.keys, rec: rep.baseRec });
+    } catch (err) {
+      if (seq === rep.seq) setMsg($('repMsg'), 'Could not check this: ' + (err && err.message ? err.message : err), 'bad');
+      return;
+    }
+    if (seq !== rep.seq) return;
+    seenSave(C.mergeSeen(seenLoad(), result.rec));
+    rep.last = result;
+    setMsg($('repMsg'), '', '');
+    renderReports(result);
+  }
+
+  // The short verdict of one report, for the table and the decoded file.
+  function reportStatus(r) {
+    if (r.verdict === 'unreadable') return { text: 'Unreadable', level: 'bad' };
+    if (r.verdict === 'invalid') return { text: 'Invalid or tampered', level: 'bad' };
+    if (r.verdict === 'unknown_key') return { text: 'Unknown key ' + r.fields.key_id, level: 'bad' };
+    const parts = [];
+    let level = 'ok';
+    if (r.mismatches.length) { parts.push('CSV does not match'); level = 'bad'; }
+    if (r.seen === 'conflict') { parts.push('conflict'); level = 'bad'; }
+    else if (r.seen === 'duplicate') { parts.push('duplicate'); if (level === 'ok') level = 'warn'; }
+    if (r.warnings.length) { parts.push(r.warnings.length + (r.warnings.length === 1 ? ' warning' : ' warnings')); if (level === 'ok') level = 'warn'; }
+    return { text: 'Genuine' + (parts.length ? ': ' + parts.join(', ') : ''), level };
+  }
+
+  function renderReports(result) {
+    const c = result.counts;
+    const partName = (s) => (s.name || 'Pasted text');
+    // messages about files and parts
+    const notices = [];
+    for (const s of result.sources) {
+      if (s.error) notices.push({ level: 'bad', text: partName(s) + ': ' + s.error.message });
+      for (const b of s.blocks) {
+        const where = partName(s) + (s.blocks.length > 1 ? ', part ' + b.n + ' of ' + s.blocks.length : '');
+        if (b.error) notices.push({ level: 'bad', text: where + ': ' + b.error.message });
+        for (const n of b.notices) notices.push({ level: n.level, text: where + ': ' + n.text });
+      }
+    }
+    for (const g of result.gaps) {
+      notices.push({ level: 'warn', text: 'Gap: ' + gapText(g.ranges) + ' of sensor ' + g.mac + ' not verified here (missing or not sent yet).' });
+    }
+    // the headline
+    const problems = c.invalid + c.unknown_key + c.unreadable + c.mismatched + c.conflict;
+    const failed = result.sources.reduce((n, s) => n + (s.error ? 1 : 0) + s.blocks.filter((b) => b.error).length, 0);
+    const failedParts = failed > 0;
+    const sum = $('repSummary');
+    sum.textContent = '';
+    let level, title;
+    const lines = [];
+    if (!c.total) {
+      level = failedParts ? 'bad' : 'warn';
+      title = failedParts ? 'Nothing could be opened' : 'The file contains no reports';
+    } else if (!problems && !failedParts) {
+      level = c.duplicate || result.gaps.length ? 'warn' : 'ok';
+      title = c.total === 1 ? '1 report checked: genuine' : c.total + ' reports checked: all genuine';
+    } else {
+      level = 'bad';
+      title = c.genuine + ' of ' + c.total + (c.total === 1 ? ' report is genuine' : ' reports are genuine');
+    }
+    if (failed) lines.push(failed + (failed === 1 ? ' file or part could not be opened' : ' files or parts could not be opened'));
+    if (c.invalid) lines.push(c.invalid + ' invalid or tampered');
+    if (c.unknown_key) lines.push(c.unknown_key + ' with an unknown key');
+    if (c.unreadable) lines.push(c.unreadable + ' not readable');
+    if (c.mismatched) lines.push(c.mismatched + ' where the CSV does not match the signed report');
+    if (c.conflict) lines.push(c.conflict + ' conflicting with a report seen before');
+    if (c.duplicate) lines.push(c.duplicate + ' seen before (duplicates)');
+    if (result.gaps.length) lines.push('gaps in the report numbers of ' + result.gaps.length + (result.gaps.length === 1 ? ' sensor' : ' sensors'));
+    sum.className = 'banner ' + level;
+    sum.appendChild(el('h2', '', title));
+    if (lines.length) {
+      const ul = el('ul');
+      for (const l of lines) ul.appendChild(el('li', '', l));
+      sum.appendChild(ul);
+    }
+    const nbox = $('repNotices');
+    nbox.textContent = '';
+    for (const n of notices) nbox.appendChild(el('p', 'msg notice ' + (n.level === 'info' ? 'info' : n.level), n.text));
+
+    // the table, one row per report
+    const t = $('repTable');
+    t.textContent = '';
+    const head = el('thead');
+    const hr = el('tr');
+    for (const h of ['Report', 'Sensor / site', 'Started (phone clock)', 'Operator', 'Sensor', 'Difference', 'Check']) hr.appendChild(el('th', '', h));
+    head.appendChild(hr);
+    t.appendChild(head);
+    const body = el('tbody');
+    for (const r of result.reports) {
+      const tr = el('tr');
+      const f = r.fields;
+      const ok = r.verdict === 'genuine';
+      const first = el('td');
+      const link = el('a', '', f ? '#' + f.serial : 'Row ' + r.row);
+      link.href = '#rep-' + r.id;
+      first.appendChild(link);
+      tr.appendChild(first);
+      const who = el('td');
+      if (ok) {
+        who.appendChild(el('span', 'mono', f.mac));
+        if (f.site_id) who.appendChild(el('span', 'note', ' ' + f.site_id));
+      } else who.textContent = '-';
+      tr.appendChild(who);
+      const fig = ok ? C.fillFigures(f) : null;
+      tr.appendChild(el('td', '', ok && f.phone_start ? C.clockText(f.phone_start, f.tz_min) : '-'));
+      tr.appendChild(el('td', 'num', fig ? fig.operator : '-'));
+      tr.appendChild(el('td', 'num', fig ? fig.sensor : '-'));
+      tr.appendChild(el('td', 'num', fig && fig.difference ? fig.difference : '-'));
+      const st = reportStatus(r);
+      tr.appendChild(el('td', st.level, st.text));
+      body.appendChild(tr);
+    }
+    t.appendChild(body);
+
+    // one card per report
+    const list = $('repList');
+    list.textContent = '';
+    for (const r of result.reports) list.appendChild(reportCard(r, result));
+    $('repOut').hidden = false;
+    $('repDownload').disabled = !c.total;
+    $('repPrint').disabled = !c.total;
+  }
+
+  function reportCard(r, result) {
+    const f = r.fields;
+    const card = el('article', 'card report');
+    card.id = 'rep-' + r.id;
+    card.appendChild(el('h3', '', f ? 'Report #' + f.serial + ' · ' + f.mac + (r.verdict === 'genuine' && f.site_id ? ' · ' + f.site_id : '') : 'Row ' + r.row + ' (not readable)'));
+    const from = result.sources.find((s) => s.name === r.source);
+    card.appendChild(el('p', 'small muted', 'From ' + (r.source || 'the pasted text') +
+      (from && from.blocks.length > 1 ? ', part ' + r.block : '') + ', row ' + r.row + '.'));
+    const verdict = el('div', 'banner ' + (r.verdict === 'genuine' ? 'ok' : 'bad'));
+    verdict.appendChild(el('h2', '', r.verdict === 'genuine' ? 'Genuine: signed by the sensor'
+      : r.verdict === 'invalid' ? 'Invalid or tampered'
+        : r.verdict === 'unknown_key' ? 'Not verifiable: unknown key ' + f.key_id : 'Not readable'));
+    verdict.appendChild(el('p', '', r.verdict === 'genuine' ? r.line : r.message));
+    card.appendChild(verdict);
+    if (r.verdict === 'genuine') {
+      let text, level;
+      if (r.seen === 'duplicate') { text = 'Duplicate: report #' + f.serial + ' of this sensor was already verified in this browser. Count it once.'; level = 'warn'; }
+      else if (r.seen === 'conflict') { text = 'Conflict: a DIFFERENT report #' + f.serial + ' of this sensor was verified before. Investigate.'; level = 'bad'; }
+      else { text = 'First check of report #' + f.serial + ' of this sensor in this browser.'; level = 'ok'; }
+      card.appendChild(el('p', 'msg ' + level, text));
+    }
+    if (r.mismatches.length) {
+      const box = el('div', 'banner bad');
+      box.appendChild(el('h2', '', 'The CSV does not match the signed report'));
+      box.appendChild(el('p', '', 'The figures on this card come from the signed report. In the CSV of the file these columns say something else:'));
+      const wrap = el('div', 'tablewrap');
+      const tb = el('table', 'sum');
+      const hh = el('tr');
+      for (const h of ['Column', 'The CSV says', 'The signed report says']) hh.appendChild(el('th', '', h));
+      tb.appendChild(el('thead')).appendChild(hh);
+      const tbody = el('tbody');
+      for (const m of r.mismatches) {
+        const tr = el('tr');
+        tr.append(el('td', 'mono', m.column), el('td', '', m.csv), el('td', '', m.signed));
+        tbody.appendChild(tr);
+      }
+      tb.appendChild(tbody);
+      wrap.appendChild(tb);
+      box.appendChild(wrap);
+      card.appendChild(box);
+    }
+    for (const n of r.notes) card.appendChild(el('p', 'msg ' + n.level, n.text));
+    if (f) {
+      if (r.verdict !== 'genuine') {
+        card.appendChild(el('p', 'msg bad', r.verdict === 'invalid' ? 'These figures are NOT trustworthy: the signature did not verify.' : 'These figures could not be checked.'));
+      }
+      const dl = el('dl', 'facts');
+      appendFactRows(dl, r.facts);
+      card.appendChild(dl);
+    }
+    return card;
+  }
+
+  $('repDownload').addEventListener('click', () => {
+    if (!rep.last || !rep.last.counts.total) return;
+    download(C.decodedCsvName(Date.now()), C.decodedCsv(rep.last), 'text/csv');
+    setMsg($('repToolMsg'), 'Downloaded.', '');
+  });
+  $('repPrint').addEventListener('click', () => { window.print(); });
+  $('repForget').addEventListener('click', () => {
+    seenClear();
+    rep.baseRec = null;
+    setMsg($('repToolMsg'), 'Forgotten. The next check starts a new record.', '');
+  });
+
+  // ---------------------------------------------------------------- start-up check
+  const actionButtons = ['generateBtn'];
+  let supported = false;
+  async function startup() {
+    const r = await C.checkSupport();
+    supported = r.ok;
+    await loadBuiltinReportKey();
+    refreshRepKeys();
+    if (r.ok) { await loadBuiltinKey(); refreshAll(); return; }
+    const box = $('support');
+    const h = document.createElement('h2');
+    const p1 = document.createElement('p');
+    const p2 = document.createElement('p');
+    if (r.code === 'insecure' || r.code === 'no_crypto') {
+      h.textContent = 'The browser has turned off cryptography on this page.';
+      p1.textContent = 'Open the page from a file on this computer (double-click index.html) or from an HTTPS address. Browsers disable Web Cryptography on plain HTTP pages.';
+    } else {
+      h.textContent = 'This browser cannot make Ed25519 signatures.';
+      p1.textContent = r.code === 'ed25519_wrong'
+        ? 'The browser\'s Ed25519 failed the built-in self-test, so it cannot be trusted for signing.'
+        : 'Ed25519 is missing from this browser\'s Web Cryptography.';
+    }
+    p2.textContent = 'Minimum versions: Chrome or Edge 137, Firefox 129, Safari 17 (macOS 14 Sonoma, iOS/iPadOS 17). Update the browser or use another one.';
+    box.append(h, p1, p2);
+    box.hidden = false;
+    for (const id of actionButtons) $(id).disabled = true;
+  }
+
+  // ---------------------------------------------------------------- key (built into this copy; see docs/DESIGN.md §14.7)
+  // BUILT_IN_KEY_FILE / BUILT_IN_KEY_PASSPHRASE are baked into this copy by authority/tools/bake_key.py from the
+  // sensors' maintenance key (never committed with a real key: the file in this repo has both as null).
+  function refreshKey() {
+    const k = state.key;
+    const badge = $('keyBadge');
+    if (k) { badge.textContent = 'Key ready'; badge.classList.add('on'); badge.classList.remove('bad'); }
+    else { badge.textContent = 'Key not available — contact the manufacturer'; badge.classList.remove('on'); badge.classList.add('bad'); }
+  }
+
+  async function loadBuiltinKey() {
+    if (!BUILT_IN_KEY_FILE || !BUILT_IN_KEY_PASSPHRASE) { state.key = null; return; }
+    try {
+      state.key = await C.decryptKeyFile(BUILT_IN_KEY_FILE, BUILT_IN_KEY_PASSPHRASE);
+    } catch (err) {
+      state.key = null;
+    }
+  }
+
+  // ---------------------------------------------------------------- challenge
+  function renderFacts() {
+    const dl = $('facts');
+    dl.textContent = '';
+    if (!state.challenge) return;
+    for (const r of C.describeChallenge(state.challenge.fields, Date.now())) {
+      const dt = document.createElement('dt');
+      dt.textContent = r.label;
+      const dd = document.createElement('dd');
+      if (r.level) dd.className = r.level;
+      const v = document.createElement('span');
+      v.className = 'value' + (r.id === 'mac' || r.id === 'nonce' ? ' mono' : '');
+      v.textContent = r.value;
+      dd.appendChild(v);
+      if (r.note) {
+        const n = document.createElement('span');
+        n.className = 'note';
+        n.textContent = r.note;
+        dd.appendChild(n);
+      }
+      dl.append(dt, dd);
+    }
+  }
+
+  function onChallengeInput() {
+    const text = $('challengeIn').value;
+    const prev = state.challenge;
+    state.challenge = null;
+    if (!text.trim()) {
+      setMsg($('challengeMsg'), '', '');
+    } else {
+      try {
+        state.challenge = C.decodeChallenge(text);
+        setMsg($('challengeMsg'), 'Valid challenge: ' + state.challenge.text, 'ok');
+      } catch (err) {
+        setMsg($('challengeMsg'), err instanceof C.CoreError ? 'Not a valid challenge. ' + err.message : String(err), 'bad');
+      }
+    }
+    if (!prev || !state.challenge || !C.equalBytes(prev.bytes, state.challenge.bytes)) clearResponse();
+    $('challengeDetails').hidden = !state.challenge;
+    renderFacts();
+    refreshGenerate();
+  }
+  $('challengeIn').addEventListener('input', onChallengeInput);
+  setInterval(() => { if (state.challenge) renderFacts(); }, 30000);
+
+  // ---------------------------------------------------------------- grant
+  for (let h = 1; h <= 15; h++) {
+    const o = document.createElement('option');
+    o.value = String(h);
+    o.textContent = h + (h === 1 ? ' hour' : ' hours');
+    $('gHours').appendChild(o);
+  }
+  $('gHours').value = '1';
+
+  // A service key signs service responses only (the sensor refuses anything else from it). This copy only ever
+  // carries the maintenance key, so this is always false; kept for a future copy baked with a service key.
+  function isService() {
+    return !!(state.key && state.key.role === 'service');
+  }
+  function currentGrant() {
+    return {
+      settings: $('gSettings').checked, firmware: $('gFirmware').checked, older: $('gOlder').checked,
+      calibration: false, hours: Number($('gHours').value),
+    };
+  }
+  function currentGrantByte() {
+    return isService() ? C.serviceGrantByte({ hours: Number($('gHours').value) }) : C.grantByte(currentGrant());
+  }
+  function refreshKind() {
+    $('maintScope').hidden = isService();
+  }
+  function onGrantChange() {
+    refreshKind();
+    const fw = $('gFirmware').checked;
+    if (!fw) $('gOlder').checked = false;
+    $('gOlder').disabled = !fw;
+    $('gOlder').parentElement.classList.toggle('disabled', !fw);
+    clearResponse();
+    refreshGenerate();
+  }
+  for (const id of ['gSettings', 'gFirmware', 'gOlder', 'gHours']) $(id).addEventListener('change', onGrantChange);
+
+  // ---------------------------------------------------------------- generate
+  function refreshGenerate() {
+    let grantErr = '';
+    try { currentGrantByte(); } catch (err) { grantErr = err.message; }
+    setMsg($('grantMsg'), grantErr, grantErr ? 'bad' : '');
+    const ready = supported && state.key && state.challenge && !grantErr;
+    $('generateBtn').disabled = !ready;
+    if (!state.response) {
+      const missing = [];
+      if (!state.key) missing.push('wait for the key to load (reload the page if this does not clear)');
+      if (!state.challenge) missing.push('paste a valid challenge (step 1)');
+      if (grantErr) missing.push('choose what to allow (step 2)');
+      setMsg($('generateMsg'), missing.length ? 'To continue: ' + missing.join(', ') + '.' : '', missing.length ? 'info' : '');
+    }
+  }
+
+  function clearResponse() {
+    state.response = null;
+    $('responseBox').hidden = true;
+    $('responseOut').textContent = '';
+    $('copyMsg').textContent = '';
+    $('recordMsg').textContent = '';
+  }
+
+  $('generateBtn').addEventListener('click', async () => {
+    if (!state.key || !state.challenge) return;
+    clearResponse();
+    try {
+      const service = isService();
+      const grant = currentGrantByte();
+      const domain = service ? C.SERVICE_DOMAIN : C.RESPONSE_DOMAIN;
+      const chal = state.challenge.bytes;
+      const resp = await C.signResponse(state.key.signingKey, chal, grant, domain);
+      const text = C.responseText(resp);
+      // Self-check: the text decodes back to the same bytes and the signature verifies with the key's public half.
+      if (!C.equalBytes(C.decodeResponse(text), resp) || !(await C.verifyResponse(state.key.publicKey, chal, resp, domain))) {
+        throw new Error('the self-check of the new response failed');
+      }
+      state.response = { bytes: resp, text, grant, kind: service ? 'service' : 'maintenance', challengeText: state.challenge.text, fields: state.challenge.fields };
+      $('responseOut').textContent = text;
+      $('responseFor').textContent = 'Device ' + state.challenge.fields.mac_text + '. ' +
+        (service ? C.describeServiceGrant(grant) : C.describeGrant(grant)) + ' Signed with key ' + state.key.fingerprint + '.';
+      $('responseBox').hidden = false;
+      setMsg($('generateMsg'), 'Response ready. Send it to the operator.', 'ok');
+    } catch (err) {
+      setMsg($('generateMsg'), 'Could not sign: ' + (err && err.message ? err.message : err), 'bad');
+    }
+  });
+
+  $('copyResponse').addEventListener('click', () => {
+    if (state.response) copyText(state.response.text, $('responseOut'), $('copyMsg'));
+  });
+
+  $('saveRecord').addEventListener('click', () => {
+    const r = state.response;
+    if (!r || !state.key) return;
+    const now = Date.now();
+    download(C.recordFileName(r.fields, now), C.recordLine({
+      nowMs: now, challengeText: r.challengeText, fields: r.fields, grant: r.grant, kind: r.kind, responseText: r.text,
+      keyFingerprint: state.key.fingerprint, keyLabel: state.key.label, note: $('recordNote').value,
+    }), 'application/x-ndjson');
+    setMsg($('recordMsg'), 'Record downloaded.', '');
+  });
+
+  function refreshAll() {
+    refreshKey();
+    refreshKind();
+    refreshGenerate();
+  }
+
+  startup();
+})();
+</script>
+</body>
+</html>
