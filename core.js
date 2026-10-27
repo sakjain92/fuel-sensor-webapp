@@ -451,7 +451,7 @@ export const STRINGS = {
 
     // RS-485 registers and the radio mode
     rgTitle: 'RS-485 registers',
-    rgBtn: 'RS-485 registers',
+    rgBtn: 'More details',
     rgIntro: 'The values the sensor sends to the RS-485 (Modbus) receiver, as that receiver sees them.',
     rgReg: 'Register',
     rgName: 'Item',
