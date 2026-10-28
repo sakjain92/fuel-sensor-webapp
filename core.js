@@ -35,6 +35,7 @@ export const STRINGS = {
     d_site: 'Site ID',
     d_siteLoc: 'Site location',
     d_temp: 'Sensor temperature',
+    d_tilt: 'Tilt',
     d_uptime: 'Running for',
     d_pwr: 'Power interruptions',
     d_tank: 'Tank L × W × H',
@@ -43,6 +44,11 @@ export const STRINGS = {
     na: 'not reported',
     notSet: 'not set',
     degC: '{v} °C',
+    tilt: 'Tilt {v}°',
+    tiltSides: 'about the X axis {x}° · about the Y axis {y}°',
+    tiltWait: 'Tilt: measuring…',
+    tiltRow: '{v}° (X axis {x}°, Y axis {y}°)',
+    tiltRowWait: 'measuring…',
     tankDims: '{l} × {w} × {h} mm',
     tankDefault: 'default',
     tankCustom: 'custom',
@@ -647,6 +653,21 @@ export function chipName(c) {
 }
 export function buildText(variant) { return STR['var_' + variant] || variant || STR.na; }
 export function numStr(x) { return fin(x) ? String(Math.round(x * 10) / 10) : ''; }
+// Tilt of the sensor from upright (0 = level), from the optional tilt_deg / tilt_x_deg / tilt_y_deg keys of the status.
+// null = hide it (older firmware: no tilt_deg); otherwise { main, sides, row }: the dashboard line, its smaller second part ('' when an axis is
+// missing) and the Device details text. tilt_deg null while the other tilt keys exist = the sensor is moving or has no reading: "measuring".
+export function tiltView(st) {
+  if (!st) return null;
+  if (fin(st.tilt_deg)) {
+    const v = fmtNum(st.tilt_deg, 1);
+    if (!fin(st.tilt_x_deg) || !fin(st.tilt_y_deg)) return { main: t('tilt', { v }), sides: '', row: t('tilt', { v }) };
+    const a = { x: fmtNum(st.tilt_x_deg, 1), y: fmtNum(st.tilt_y_deg, 1) };
+    return { main: t('tilt', { v }), sides: t('tiltSides', a), row: t('tiltRow', { v, ...a }) };
+  }
+  if (st.tilt_deg === null && ('tilt_x_deg' in st || 'tilt_y_deg' in st)) return { main: STR.tiltWait, sides: '', row: STR.tiltRowWait };
+  return null;
+}
+
 export function tankText(tk) {
   tk = tk || {};
   return t('tankDims', { l: numStr(tk.l_mm), w: numStr(tk.w_mm), h: numStr(tk.h_mm) }) + ', ' + (tk.custom ? STR.tankCustom : STR.tankDefault);

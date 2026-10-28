@@ -75,6 +75,7 @@ export class FakeSensor {
     this.otaFail = o.otaFail || null;              // {afterBytes, err, msg}: refuse the package with ota_err
     this.endFail = o.endFail || null;              // ota_end answers this error code
     this.rssi = o.rssi === undefined ? -58 : o.rssi;
+    this.regsMap = o.regsMap === undefined ? 2 : o.regsMap;     // the register map version of `regs`: 2 = 41 words with tilt; 1 = 38 words (older firmware); null = no `map` key (older still)
     this.rtc = !!o.rtc;                            // a battery-backed clock chip is fitted: the sensor knows the time from the start
     this.s = {
       fw: o.fw || '2.0.0',
@@ -82,6 +83,7 @@ export class FakeSensor {
       tank: { l_mm: 1755, w_mm: 790, h_mm: 190, custom: false, cap_l: 240 },
       level_mm: o.level_mm === undefined ? 123.45 : o.level_mm,
       site_id: o.site_id === undefined ? 'BLR-0042' : o.site_id,
+      tilt: o.tilt === undefined ? { tilt_deg: 0.8, tilt_x_deg: -0.3, tilt_y_deg: 0.7 } : o.tilt,   // the optional tilt keys of the status; null = older firmware (none)
       site_lat: o.site_lat === undefined ? 12.971599 : o.site_lat,
       site_lon: o.site_lon === undefined ? 77.594566 : o.site_lon,
       fuel: { filled_l: 1452.29, drained_l: 678.93, fills: 12, drains: 5, active: 'none', pending_l: 0 },
@@ -289,6 +291,7 @@ export class FakeSensor {
       fuel: { filled_l: r2(s.fuel.filled_l), drained_l: r2(s.fuel.drained_l), fills: s.fuel.fills, drains: s.fuel.drains, active: s.fuel.active, pending_l: r2(s.fuel.pending_l) },
       health: { safe_mode: false, trial: this.clock.now() < s.trialUntil, reset_reason: 'poweron', coredump: !!s.coredump },
     };
+    if (s.tilt) Object.assign(o, s.tilt);
     if (this.variant === 'debug') Object.assign(o, { tracker: 'v6.11', calibration: '0x4242', state: 'confirmed', moving: this._statusWord() === 'moving' });
     return o;
   }
@@ -297,7 +300,7 @@ export class FakeSensor {
     return { mode: l.mode, phy: l.phy, rssi: this.rssi, pending: l.pending, mtu: this.mtu };
   }
   regsWords() {
-    const s = this.s, w = new Array(38).fill(0), lit = this._litres(), cap = this._capacity();
+    const s = this.s, w = new Array(this.regsMap === 1 || this.regsMap === null ? 38 : 41).fill(0), lit = this._litres(), cap = this._capacity();
     const u32 = (i, v) => { v = Math.max(0, Math.min(0xfffffffe, Math.round(v))); w[i] = (v >>> 16) & 0xffff; w[i + 1] = v & 0xffff; };
     const s32 = (i, v) => { const x = v | 0; w[i] = (x >>> 16) & 0xffff; w[i + 1] = x & 0xffff; };
     w[0] = clamp(Math.round(lit * 4095 / cap), 0, 4095);
@@ -320,9 +323,19 @@ export class FakeSensor {
     w[35] = ma * 2048 + mi * 32 + pa;
     w[36] = 0;
     w[37] = Math.round(this._pct() * 10);
+    if (w.length > 38) {                                         // map 2: tilt (0.1 deg); 0xFFFF / 0x8000 while there is no reading or no accelerometer
+      const t = s.tilt || {}, tenth = (v, lim) => clamp(Math.round(v * 10), -lim, lim);
+      w[38] = t.tilt_deg == null ? 0xffff : tenth(Math.abs(t.tilt_deg), 900);
+      w[39] = t.tilt_x_deg == null ? 0x8000 : tenth(t.tilt_x_deg, 900) & 0xffff;
+      w[40] = t.tilt_y_deg == null ? 0x8000 : tenth(t.tilt_y_deg, 900) & 0xffff;
+    }
     return w;
   }
-  regsEvent() { return { ev: 'regs', map: 1, seq: this._regsSeq++ & 0xffff, first: 40001, count: 38, words: this.regsWords() }; }
+  regsEvent() {
+    const words = this.regsWords(), e = { ev: 'regs', map: this.regsMap, seq: this._regsSeq++ & 0xffff, first: 40001, count: words.length, words };
+    if (this.regsMap === null) delete e.map;
+    return e;
+  }
 
   // ------------------------------------------------------------------ the periodic work (one tick = statusMs)
   _tick() {

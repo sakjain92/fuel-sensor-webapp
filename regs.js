@@ -1,11 +1,34 @@
 // The RS-485 (Modbus) register view: decode the `regs` block with the table generated from firmware/docs/REGISTERS.md
 // (regs_table.js), and keep the live state (staleness) of the view. No DOM.
+//
+// The table is chosen by the `map` (register map version) of the sensor's reply, because one app serves sensors of every age:
+//   map 2 (REGS_MAP)    regs_table.js as generated: tilt at 40039-41, the receiver's registers at 40042-45
+//   map 1 or no map     the same table without the tilt rows, the receiver's registers at 40039-42 (built here from REG_ITEMS)
+//   a newer map         only 40001-40038, which map 1 and map 2 share; everything after that is shown raw, never named
 import { Emitter, realClock } from './util.js';
 import { REG_ITEMS } from './regs_table.js';
 import { t, STR, fmtNum, fmtDuration } from './core.js';
 
 export const FIRST_REG = 40001;
 export const STALE_AFTER_S = 5;
+export const REGS_MAP = 2;                  // the register map version that regs_table.js was generated from (test/regs.test.mjs pins its layout)
+const MAP1_SENSOR_END = 40038;              // map 1: the sensor sent 40001-40038; the sensor registers after that came with map 2
+
+// The map-1 table, derived from the generated one so that no value is typed twice: drop the sensor registers that came after
+// map 1 (tilt) and move the receiver's registers up by the room they took.
+const later = (i) => i.sentBy === 'sensor' && i.reg + i.words - 1 > MAP1_SENSOR_END;
+const laterWords = REG_ITEMS.filter(later).reduce((a, i) => a + i.words, 0);
+export const MAP1_ITEMS = REG_ITEMS.filter((i) => !later(i)).map((i) => (i.sentBy === 'receiver' ? { ...i, reg: i.reg - laterWords } : i));
+// What every known map agrees on: the sensor registers of map 1.
+const COMMON_ITEMS = MAP1_ITEMS.filter((i) => i.sentBy === 'sensor');
+
+// The map of a `regs` reply or event: a missing or malformed `map` is an old sensor (map 1).
+export const regsMapOf = (e) => (e && Number.isInteger(e.map) && e.map >= 1 ? e.map : 1);
+// The items to decode a block of this map with. A newer map than we know may have moved anything after 40038.
+export function itemsFor(map) {
+  if (map === REGS_MAP) return REG_ITEMS;
+  return Number.isInteger(map) && map > REGS_MAP ? COMMON_ITEMS : MAP1_ITEMS;
+}
 
 const hex16 = (w) => '0x' + w.toString(16).toUpperCase().padStart(4, '0');
 const UNIT_TEXT = { 'deg C': '°C', deg: '°' };
@@ -59,14 +82,21 @@ export function decodeItem(item, w) {
   }
 }
 
-// words: the `regs` block, first: the register number of words[0]. Returns {rows}: one row per register, 40001 up.
+// words: the `regs` block, first: the register number of words[0], map: the reply's register map version (see regsMapOf; left out =
+// the version this app is built for). Returns {rows}: one row per register, 40001 up.
 // A row: {reg, name (first register of an item, else null), cont, raw (number or null), hex, value (text or null),
 //         receiver, missing, unknown}
-export function decodeBlock(words, first = FIRST_REG) {
+// A block longer than the table's sensor registers has registers this app does not know. They are shown raw, and the receiver's
+// rows are left out because the receiver's own registers follow the sensor's and have moved with them.
+export function decodeBlock(words, first = FIRST_REG, map = REGS_MAP) {
   const rows = [];
   const get = (reg) => { const i = reg - first; return i >= 0 && i < words.length ? words[i] : undefined; };
+  let items = itemsFor(map);
+  const sensorEnd = items.reduce((a, i) => (i.sentBy === 'sensor' ? Math.max(a, i.reg + i.words - 1) : a), 0);
+  const extra = first + words.length - 1 > sensorEnd;
+  if (extra) items = items.filter((i) => i.sentBy === 'sensor');
   let tableEnd = 0;
-  for (const item of REG_ITEMS) {
+  for (const item of items) {
     const regs = Array.from({ length: item.words }, (_, k) => item.reg + k);
     tableEnd = Math.max(tableEnd, item.reg + item.words - 1);
     if (item.sentBy === 'receiver') {
@@ -123,7 +153,7 @@ export class RegsView extends Emitter {
   view() {
     if (!this.last) return { waiting: true, rows: decodeBlock([]).rows, seq: null, stale: false, staleForS: 0 };
     const staleForS = Math.max(0, (this.clock.now() - this.changedAt) / 1000);
-    return { waiting: false, rows: decodeBlock(this.last.words, this.last.first || FIRST_REG).rows, seq: this.seq, stale: staleForS > STALE_AFTER_S, staleForS };
+    return { waiting: false, rows: decodeBlock(this.last.words, this.last.first || FIRST_REG, regsMapOf(this.last)).rows, seq: this.seq, stale: staleForS > STALE_AFTER_S, staleForS };
   }
   statusText() {
     const v = this.view();

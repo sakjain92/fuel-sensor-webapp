@@ -3,10 +3,12 @@ import { STR, t } from '../core.js';
 import { RegsView } from '../regs.js';
 import { $, msg } from './dom.js';
 
+const layoutOf = (rows) => rows.map((r) => r.reg + (r.receiver ? 'r' : '') + (r.cont ? 'c' : '') + (r.unknown ? 'u' : '')).join();
+
 export function initRegs(ctx) {
   const view = new RegsView({ client: ctx.client, clock: ctx.clock });
   const link = ctx.link;
-  let built = false;
+  let builtFor = null;             // the layout the table was built for: sensors of another register map version have other rows
   const cells = new Map();         // reg -> {name, raw, value}
 
   function build(rows) {
@@ -24,12 +26,12 @@ export function initRegs(ctx) {
       body.appendChild(tr);
       cells.set(r.reg, { nm, no, raw: b, val: c });
     }
-    built = true;
+    builtFor = layoutOf(rows);
   }
   function set(el, text) { if (el.textContent !== text) el.textContent = text; }
   function render() {
     const v = view.view();
-    if (!built) build(v.rows);
+    if (builtFor !== layoutOf(v.rows)) build(v.rows);
     for (const r of v.rows) {
       const c = cells.get(r.reg);
       if (!c) continue;

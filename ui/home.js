@@ -1,7 +1,7 @@
 // The dashboard: level, litres, percentage, status, totals, Bluetooth line, device details, Raw ADC Value table.
 import {
   STR, t, fin, fmtLitres, fmtMm, fmtPct, fmtLpmm, fmtNum, fmtDuration, fmtAgo, levelOf, litresOf, capacityOf, fillPctOf, clampPct, rawAdcOf,
-  rawAdcFromLitres, RAW_ADC_MAX, statusView, fuelView, healthFlags, buildText, tankText, lpmmOf, siteLocText, linkSummary,
+  rawAdcFromLitres, RAW_ADC_MAX, statusView, fuelView, tiltView, healthFlags, buildText, tankText, lpmmOf, siteLocText, linkSummary,
 } from '../core.js';
 import { $, rows } from './dom.js';
 
@@ -56,6 +56,13 @@ export function initHome(ctx) {
     $('cap').textContent = t('ofCap', { c: fmtLitres(capacityOf(st)) });
     $('rawLit').textContent = t('rawAdc', { v: fmtNum(rawAdcOf(st), 0), m: String(RAW_ADC_MAX) });
     renderRawTable(capacityOf(st));
+    const tv = tiltView(st);
+    $('tilt').hidden = !tv;
+    if (tv) {
+      $('tiltV').textContent = tv.main;
+      $('tiltS').textContent = tv.sides;
+      $('tiltS').hidden = !tv.sides;
+    }
     const fv = fuelView(st);
     $('tot').hidden = !fv;
     if (fv) {
@@ -76,6 +83,7 @@ export function initHome(ctx) {
       ['d_site', st.site_id || STR.notSet],
       ['d_siteLoc', siteLocText(st)],
       ['d_temp', fin(st.temp_c) ? t('degC', { v: Math.round(st.temp_c) }) : ''],
+      ['d_tilt', tv ? tv.row : ''],
       ['d_uptime', fin(st.uptime_s) ? fmtDuration(st.uptime_s) : ''],
       ['d_pwr', fin(st.power_interruptions) ? fmtNum(st.power_interruptions, 0) : ''],
       ['d_tank', st.tank ? tankText(tk) : ''],
