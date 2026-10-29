@@ -171,7 +171,8 @@ export class Maintenance extends Emitter {
   }
 
   // ---- resistive output calibration (`maint_rescal`, settings grant; a proof of concept: production does it over the UART). Each call answers
-  // {ok, state} with the sensor's reply: open, n, on, done, pair, wire (ohm or null), saved (values in the device memory), nom (start and state).
+  // {ok, state} with the sensor's reply: open, n, on, done, probe (ohm or null), saved (values in the device memory), nom (start and state); `test` also
+  // target, calc (the ohms the sensor calculates for it) and mask.
   async _rescal(fields) {
     const r = await this._act(async () => ({ state: await this._call('maint_rescal', fields) }));
     // the sensor's own words are the useful ones here (which branch, which limits): "Branch 12: 74.25 to 78.75 ohm expected."
@@ -181,9 +182,9 @@ export class Maintenance extends Emitter {
   rescalState() { return this._rescal({ op: 'state' }); }
   rescalStart() { return this._rescal({ op: 'start' }); }
   rescalOn(n) { return this._rescal({ op: 'on', n }); }
-  rescalPairOn() { return this._rescal({ op: 'pair_on' }); }
+  rescalProbe(ohm) { return this._rescal({ op: 'probe', ohm }); }
+  rescalTest(ohm) { return this._rescal({ op: 'test', ohm }); }
   rescalSet(n, ohm) { return this._rescal({ op: 'set', n, ohm }); }
-  rescalPairSet(ohm) { return this._rescal({ op: 'pair_set', ohm }); }
   rescalSave() { return this._rescal({ op: 'save' }); }
   rescalCancel() { return this._rescal({ op: 'cancel' }); }
   rescalClear() { return this._rescal({ op: 'clear' }); }

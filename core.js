@@ -292,17 +292,25 @@ export const STRINGS = {
     resCleared: 'Calibration cleared.',
     resStep: 'Step {i} of {t}',
     resBranch: 'Branch {n}',
-    resPair: 'Branches {a} + {b} together',
+    resProbeStep: 'Meter probes touching',
+    resProbeHint: 'Touch the two probes together and type what the meter shows.',
     resNom: 'Nominal {v}',
     resExpect: 'Expect about {v}',
-    resExpectRange: 'Expect {lo} to {hi} Ω',
-    resWire: 'Wiring {v}',
+    resProbe: 'Probes {v}',
+    resProbeErr: 'Probes: 0 to {max} Ω.',
     resLabel: 'Measured (Ω)',
     resBack: 'Back',
     resNext: 'Next',
     resSave: 'Save',
     resDone: 'Done',
     resSaved: 'Saved. The output uses the new values.',
+    resTestOpen: 'Test the output',
+    resTestStep: 'Test {i} of {t}',
+    resTestCalc: 'The sensor calculates {v}',
+    resTestHead: 'Wanted · Calculated · Output · Difference',
+    resTestRow: '{w} · {c} · {o} · {d}',
+    resTestWorst: 'Largest difference {v}',
+    resTestDone: 'Test done. The output is back to the fuel level.',
     resStarting: 'Switching the outputs off…',
     resErr_empty: 'Enter the reading.',
     resErr_nan: 'Enter a number.',
@@ -1019,51 +1027,40 @@ export function hasCap(hello, word) {
 }
 
 
-// ---- resistive output calibration (PROTOCOL.md 4.2 `maint_rescal`; the same rules as firmware core/outputs.cpp)
-// The 14 branches of the output (gate Gn = branch n), nominal ohms. Readings are taken at the end of the wiring: wiring + branch. The wiring is
-// found from branch 14 and 13 alone and together (Mab = W + Ra||Rb gives W = Mab - sqrt((Ma - Mab)(Mb - Mab))) and taken off every reading.
+// ---- resistive output calibration and output test (PROTOCOL.md 4.2 `maint_rescal`; the same rules as firmware core/outputs.cpp)
+// The 14 branches of the output (gate Gn = branch n), nominal ohms. A reading is taken with a meter's probes: probes + branch. The probes' own
+// resistance is read first, with the probes touching, and taken off every reading (a 4-wire meter shows about 0).
 export const RESCAL_NOM = [100e3, 47e3, 27e3, 13e3, 6.8e3, 3.6e3, 1.8e3, 1e3, 470, 249, 150, 75, 47, 20];
-export const RESCAL_TOL = 0.03, RESCAL_ABS = 5, RESCAL_WIRE_MAX = 5, RESCAL_WIRE_SLACK = 1, RESCAL_REF_A = 14, RESCAL_REF_B = 13;
-// the order of the steps: 14, 13, both, then 12 down to 1
+export const RESCAL_TOL = 0.03, RESCAL_ABS = 5, RESCAL_PROBE_MAX = 5, RESCAL_PROBE_MIN = -1;
+export const RESCAL_TEST_POINTS = [10, 25, 50, 75, 100, 125, 150, 175, 200];       // the output test: the output's range, 10 to 200 ohm
+// the order of the steps: the probes touching, then branches 14 down to 1
 export function rescalSteps() {
-  const st = [{ kind: 'one', n: RESCAL_REF_A }, { kind: 'one', n: RESCAL_REF_B }, { kind: 'pair' }];
-  for (let n = RESCAL_REF_B - 1; n >= 1; n--) st.push({ kind: 'one', n });
+  const st = [{ kind: 'probe' }];
+  for (let n = RESCAL_NOM.length; n >= 1; n--) st.push({ kind: 'one', n });
   return st;
 }
-// The wiring from the three readings (null when they cannot belong together: the pair must be below both singles).
-export function rescalWire(ma, mb, mab) {
-  if (![ma, mb, mab].every((x) => fin(x) && x > 0) || !(mab < ma) || !(mab < mb)) return null;
-  const w = mab - Math.sqrt((ma - mab) * (mb - mab));
-  if (!(w >= -RESCAL_WIRE_SLACK)) return null;
-  return w < 0 ? 0 : w;
-}
-// What a reading of branch n (1..14) may be: the resistor +-max(3 %, 5 ohm), plus the wiring (unknown yet: up to the largest wiring, for branch 14 and 13).
+// What a reading of branch n (1..14) may be: the resistor +-max(3 %, 5 ohm), plus the probes (0 when not read yet).
 export function rescalTol(r) { return Math.max(r * RESCAL_TOL, RESCAL_ABS); }
-export function rescalLimits(n, wire, nom = RESCAL_NOM) {
-  const r = nom[n - 1];
-  const lo = r - rescalTol(r), hi = r + rescalTol(r);
-  return wire === null || wire === undefined ? { lo, hi: hi + RESCAL_WIRE_MAX } : { lo: lo + wire, hi: hi + wire };
+export function rescalLimits(n, probe, nom = RESCAL_NOM) {
+  const r = nom[n - 1], p = probe === null || probe === undefined ? 0 : probe;
+  return { lo: r - rescalTol(r) + p, hi: r + rescalTol(r) + p };
 }
-// What the pair reading (branches 14 and 13 on together) may be once branch 14 and 13 are read: the wiring W that puts both in their
-// +-max(3 %, 5 ohm) windows (0 to 5 ohm), put into Mab = W + (Ma - W)(Mb - W)/(Ma + Mb - 2W), which grows with W. null when the two readings cannot fit.
-export function rescalPairWindow(ma, mb, nom = RESCAL_NOM) {
-  const lim = (n) => ({ lo: nom[n - 1] - rescalTol(nom[n - 1]), hi: nom[n - 1] + rescalTol(nom[n - 1]) });
-  const a = lim(RESCAL_REF_A), b = lim(RESCAL_REF_B);
-  if (![ma, mb].every(fin)) return null;
-  const wlo = Math.max(0, ma - a.hi, mb - b.hi), whi = Math.min(RESCAL_WIRE_MAX, ma - a.lo, mb - b.lo);
-  if (!(wlo <= whi)) return null;
-  const f = (w) => w + ((ma - w) * (mb - w)) / (ma + mb - 2 * w);
-  return { lo: f(wlo), hi: f(whi) };
+// One point of the output test: the output = the meter reading with the probes off; the difference is to what the sensor calculated for it.
+export function rescalTestRow(target, calc, reading, probe) {
+  const out = reading - (probe || 0);
+  return { target, calc, reading, out, diff: out - calc };
 }
+export function rescalTestWorst(rows) { return rows.reduce((m, r) => Math.max(m, Math.abs(r.diff)), 0); }
 // What the operator typed: a number with a point or a comma. {ok, v} or {ok: false, err: 'empty' | 'nan'}
-export function parseOhm(text) {
+export function parseOhm(text, allowZero = false) {      // allowZero: the probes touching can read 0 (a 4-wire meter)
   const s = String(text === undefined || text === null ? '' : text).trim().replace(',', '.');
   if (!s) return { ok: false, err: 'empty' };
   if (!/^\d+(\.\d*)?$|^\.\d+$/.test(s)) return { ok: false, err: 'nan' };
   const v = Number(s);
-  return fin(v) && v > 0 ? { ok: true, v } : { ok: false, err: 'nan' };
+  return fin(v) && (v > 0 || (allowZero && v === 0)) ? { ok: true, v } : { ok: false, err: 'nan' };
 }
 const trim = (x, d) => String(Math.round(x * 10 ** d) / 10 ** d);
 export function fmtOhm(v) { return v >= 1000 ? trim(v / 1000, 2) + ' kΩ' : trim(v, 2) + ' Ω'; }       // 20 Ω, 6.8 kΩ, 100 kΩ
 export function fmtReading(v) { return trim(v, v >= 1000 ? 1 : 2) + ' Ω'; }
 export function fmtPlain(v) { return trim(v, v >= 1000 ? 1 : 2); }
+export function fmtDiff(v) { return (Math.round(v * 100) / 100 < 0 ? '−' : '+') + trim(Math.abs(v), 2) + ' Ω'; }      // +0.07 Ω, −0.31 Ω

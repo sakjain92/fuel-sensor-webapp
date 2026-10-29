@@ -311,16 +311,23 @@
       <p id="resStepN" class="hint"></p>
       <h2 id="resWhat" class="big2"></h2>
       <p id="resNom" class="hint"></p>
-      <p id="resWire" class="hint" hidden></p>
+      <p id="resProbe" class="hint" hidden></p>
       <label for="resIn" data-t="resLabel"></label>
       <input id="resIn" inputmode="decimal" autocomplete="off" enterkeyhint="next">
       <p id="resErr" class="msg bad" role="alert" hidden></p>
       <div class="row2"><button id="bResBack" class="btn" type="button" data-t="resBack"></button><button id="bResNext" class="btn pri" type="button" data-t="resNext"></button></div>
+      <button id="bResTest" class="btn" type="button" data-t="resTestOpen" hidden></button>
       <button id="bResCancel" class="lnk" type="button" data-t="cancel"></button>
+    </div>
+    <div id="resTbl" hidden>
+      <p class="hint" data-t="resTestHead"></p>
+      <ul id="resRows" class="log"></ul>
+      <p id="resWorst" class="big2"></p>
     </div>
     <p id="resStart" class="hint" data-t="resStarting"></p>
     <div id="resDone" hidden>
-      <p class="msg ok" data-t="resSaved"></p>
+      <p id="resDoneMsg" class="msg ok" data-t="resSaved"></p>
+      <button id="bResTestAfter" class="btn" type="button" data-t="resTestOpen"></button>
       <button id="bResDone" class="btn pri" type="button" data-t="resDone"></button>
     </div>
     <p id="resFail" class="msg bad" role="alert" hidden></p>
