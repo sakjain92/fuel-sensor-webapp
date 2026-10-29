@@ -232,6 +232,18 @@
     <p id="clkMsg" class="msg" hidden></p>
   </div>
 
+  <div id="cRes" class="card" hidden>
+    <h2 data-t="resTitle"></h2>
+    <p id="resNow" class="big2"></p>
+    <button id="bResOpen" class="btn pri" type="button" data-go="res" data-t="resOpen"></button>
+    <p id="resMsg" class="msg" hidden></p>
+    <button id="bResClr" class="lnk" type="button" data-t="resClear" hidden></button>
+    <div id="resConf" class="confirm" hidden>
+      <p data-t="resClearQ"></p>
+      <div class="row2"><button id="bResYes" class="btn" type="button" data-t="resClearYes"></button><button id="bResNo" class="btn" type="button" data-t="cancel"></button></div>
+    </div>
+  </div>
+
   <div id="cFw" class="card" hidden>
     <h2 data-t="fwTitle"></h2>
     <p id="fwNow" class="hint"></p>
@@ -289,6 +301,31 @@
   </div>
 
   <button id="bFinish2" class="btn fin big" type="button" data-t="finish"></button>
+</section>
+
+<section id="pRes" hidden>
+  <div class="card">
+    <h1 data-t="resTitle"></h1>
+    <div id="resBox" hidden>
+      <div class="bar"><i id="resBar"></i></div>
+      <p id="resStepN" class="hint"></p>
+      <h2 id="resWhat" class="big2"></h2>
+      <p id="resNom" class="hint"></p>
+      <p id="resWire" class="hint" hidden></p>
+      <label for="resIn" data-t="resLabel"></label>
+      <input id="resIn" inputmode="decimal" autocomplete="off" enterkeyhint="next">
+      <p id="resErr" class="msg bad" role="alert" hidden></p>
+      <div class="row2"><button id="bResBack" class="btn" type="button" data-t="resBack"></button><button id="bResNext" class="btn pri" type="button" data-t="resNext"></button></div>
+      <button id="bResCancel" class="lnk" type="button" data-t="cancel"></button>
+    </div>
+    <p id="resStart" class="hint" data-t="resStarting"></p>
+    <div id="resDone" hidden>
+      <p class="msg ok" data-t="resSaved"></p>
+      <button id="bResDone" class="btn pri" type="button" data-t="resDone"></button>
+    </div>
+    <p id="resFail" class="msg bad" role="alert" hidden></p>
+    <button id="bResBackM" class="btn" type="button" data-go="maint" data-t="resBack" hidden></button>
+  </div>
 </section>
 
 <section id="pFw" hidden>

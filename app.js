@@ -1,6 +1,6 @@
 // MRM fuel sensor phone app: start-up, connection, routing between the screens.
 // Everything the screens need hangs off `ctx`; the screens never touch Web Bluetooth (they talk to ctx.client).
-import { STR, t, parseQuery, browserSupport } from './core.js';
+import { STR, t, parseQuery, browserSupport, hasCap } from './core.js';
 import { JsonLinesClient, WebBluetoothTransport } from './ble.js';
 import { Maintenance } from './maint.js';
 import { FillFlow } from './fill.js';
@@ -15,11 +15,12 @@ import { initFill } from './ui/fill.js';
 import { initLogin } from './ui/login.js';
 import { initMaint } from './ui/maint.js';
 import { initFw } from './ui/fw.js';
+import { initRescal } from './ui/rescal.js';
 import { initRegs } from './ui/regs.js';
 import { initLogs } from './ui/logs.js';
 import { initWait } from './ui/wait.js';
 
-const PAGES = ['pUnsupported', 'pConnect', 'pHome', 'pLogin', 'pMaint', 'pFw', 'pRegs', 'pLogs', 'pWait'];
+const PAGES = ['pUnsupported', 'pConnect', 'pHome', 'pLogin', 'pMaint', 'pFw', 'pRes', 'pRegs', 'pLogs', 'pWait'];
 
 async function main() {
   applyStrings();
@@ -80,6 +81,8 @@ async function main() {
     if (h === 'maint') showPage(maint.active ? 'pMaint' : 'pLogin');
     else if (h === 'fw') {
       if ((maint.active && maint.grant.firmware) || screens.pFw.holdsResult) showPage('pFw'); else nav.go('maint');
+    } else if (h === 'res') {
+      if (maint.active && maint.grant.settings && hasCap(client.hello, 'rescal')) showPage('pRes'); else nav.go('maint');
     } else if (h === 'regs') showPage('pRegs');
     else if (h === 'logs' && ctx.variant === 'debug') showPage('pLogs');
     else showPage('pHome');
@@ -139,7 +142,7 @@ async function main() {
   maint.on('ended', (reason) => {
     bus.emit('maint');
     if (reason === 'device') screens.pLogin.setMessage(STR.sessEnded);
-    if (app.page === 'pMaint' || app.page === 'pFw') route();
+    if (app.page === 'pMaint' || app.page === 'pFw' || app.page === 'pRes') route();
   });
 
   // ---- the context the screens use
@@ -172,6 +175,7 @@ async function main() {
   screens.pLogin = initLogin(ctx);
   screens.pMaint = initMaint(ctx);
   screens.pFw = initFw(ctx);
+  screens.pRes = initRescal(ctx);
   screens.pRegs = initRegs(ctx);
   screens.pLogs = initLogs(ctx);
   screens.pWait = initWait(ctx);

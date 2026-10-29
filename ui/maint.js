@@ -1,7 +1,7 @@
 // The Maintenance screen (behind the login): tank size, site ID and location, firmware, crash report, reset, fill reports, restart.
 import {
   STR, t, fin, fmtWait, fmtLpmm, fmtLitres, numStr, tankText, grantText, buildText, validateTank, parseCapacity, fmtNum, CAP_DEFAULT, siteLocText, fixIsWeak, resetPhraseOk,
-  fillWhen, fillL, fillFlagNames, fillShareText, errText, clockDiffText, clockSrcText,
+  fillWhen, fillL, fillFlagNames, fillShareText, errText, clockDiffText, clockSrcText, hasCap as hasFeature,
 } from '../core.js';
 import { makeReportFile, deliverFile, downloadBlob } from '../export.js';
 import { $, msg, busy, confirmBox, copyTxt } from './dom.js';
@@ -14,6 +14,7 @@ export function initMaint(ctx) {
   let allFile = null;
   let probeAt = 0;
   let clk = null;                       // the sensor clock as last read: {set, utc, src, rtc, diffS}
+  let resSaved = null;                  // resistive output calibration: values in the sensor's memory (null: not read)
 
   function renderSess() {
     const left = maint.sessionLeftMs();
@@ -37,6 +38,7 @@ export function initMaint(ctx) {
     $('cSite').hidden = !g.settings;
     $('cClock').hidden = !g.settings;
     $('cReset').hidden = !g.settings;
+    $('cRes').hidden = !g.settings || !hasFeature(ctx.client.hello, 'rescal');     // a board with the resistive output
     $('cFw').hidden = !g.firmware;
     $('tankNow').textContent = tk ? t('tankNow', { d: tankText(tk) }) : '';
     if (tk && !tankDirty) {
@@ -59,6 +61,23 @@ export function initMaint(ctx) {
     const r = await maint.loadState();
     if (!r.ok && !r.ended) msg('mErr', r.text, 'bad'); else $('mErr').hidden = true;
     renderMaint();
+  }
+
+  // ---- resistive output calibration (the page itself is ui/rescal.js)
+  function renderRes() {
+    $('resNow').textContent = resSaved === null ? '' : resSaved >= 14 ? STR.resCalibrated : STR.resNotCal;
+    $('bResClr').hidden = !resSaved || !$('resConf').hidden;
+  }
+  async function loadRes() {
+    if ($('cRes').hidden) return;
+    const r = await maint.rescalState();
+    resSaved = r.ok ? r.state.saved : null;
+    renderRes();
+  }
+  async function clearRes() {
+    $('resMsg').hidden = true;
+    const r = await maint.rescalClear();
+    if (r.ok) { msg('resMsg', STR.resCleared, 'ok'); resSaved = r.state.saved; renderRes(); } else if (!r.ended) msg('resMsg', t('resFail', { e: r.text }), 'bad');
   }
 
   // ---- sensor clock
@@ -264,6 +283,7 @@ export function initMaint(ctx) {
   $('bTankSave').addEventListener('click', () => tankSave(false));
   confirmBox($('bTankDef'), $('defConf'), $('bDefYes'), $('bDefNo'), () => { tankDirty = false; tankSave(true); });
   confirmBox($('bClkSet'), $('clkConf'), $('bClkYes'), $('bClkNo'), clockSet);
+  confirmBox($('bResClr'), $('resConf'), $('bResYes'), $('bResNo'), clearRes);
   $('bSiteSave').addEventListener('click', siteSave);
   $('bSiteClear').addEventListener('click', siteClear);
   $('siteIn').addEventListener('input', () => { $('siteErr').hidden = true; $('siteMsg').hidden = true; });
@@ -284,7 +304,8 @@ export function initMaint(ctx) {
 
   return {
     enter() {
-      for (const id of ['mErr', 'capMsg', 'capErr', 'tankMsg', 'siteMsg', 'siteErr', 'locMsg', 'crashMsg', 'rsMsg', 'rstMsg', 'fillsAllMsg', 'clkErr', 'clkMsg', 'clkConf']) $(id).hidden = true;
+      for (const id of ['mErr', 'capMsg', 'capErr', 'tankMsg', 'siteMsg', 'siteErr', 'locMsg', 'crashMsg', 'rsMsg', 'rstMsg', 'fillsAllMsg', 'clkErr', 'clkMsg', 'clkConf', 'resMsg', 'resConf']) $(id).hidden = true;
+      resSaved = null;
       fix = null;
       clk = null;                                                  // never show the clock of the sensor visited before
       $('siteIn').value = (app.status && app.status.site_id) || '';
@@ -295,6 +316,7 @@ export function initMaint(ctx) {
       load();
       loadClock();
       loadFills();
+      loadRes();
     },
     leave() {},
     tick: renderSess,

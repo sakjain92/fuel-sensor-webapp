@@ -9,11 +9,13 @@
 // It is NOT a copy of the firmware: levels, signatures and timings are simulated.
 import { realClock, utf8, utf8Decode, base64Decode, base64Encode } from './util.js';
 import { ConnectError, DisconnectedError, MAX_LINE } from './ble.js';
+import { RESCAL_NOM, RESCAL_WIRE_MAX, RESCAL_REF_A, RESCAL_REF_B, rescalWire, rescalTol } from './core.js';
 
 const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 export const DEMO_RESPONSE = 'DEM0'.repeat(26);               // 104 symbols
 const DEFAULT_GRANT = { settings: true, firmware: true, calibration: false, older: false, service: false, hours: 1 };
 const SLOT_BYTES = 1966080;
+const fmt5 = (x) => String(Number(x.toPrecision(5)));          // C's %.5g, as the firmware prints a limit
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 // maint_time takes the phone's unix seconds from 2026-01-01 to 2099-12-31 (PROTOCOL.md 4.2); anything else is bad_input
 export const CLOCK_MIN_S = Date.UTC(2026, 0, 1) / 1000;
@@ -93,6 +95,7 @@ export class FakeSensor {
       clockOffsetMs: o.rtc ? (o.rtcOffsetS || 0) * 1000 : null,     // sensor UTC = this clock + offset; null = the sensor does not know the time
       trialUntil: 0, rolledBack: false,
       link: { mode: 'auto', phy: '2M', pending: false },
+      res: { open: false, on: 0, raw: new Array(14).fill(0), pair: 0, wire: null, saved: new Array(14).fill(0), lastMs: 0 },   // resistive output calibration
       bootMs: this.clock.now(),
     };
     this.fill = { stage: 'idle' };
@@ -129,6 +132,7 @@ export class FakeSensor {
     this._timers.clear();
   }
   _resetConn() {
+    this._resEnd();
     this.subs = new Set();
     this.session = null;
     this.ota = null;
@@ -376,7 +380,7 @@ export class FakeSensor {
 
   // ------------------------------------------------------------------ commands: general and login
   cmd_hello() { return { proto: 1, fw: this.s.fw, variant: this.variant, chip: this.chip, mac: this.mac, caps: this._caps(), min_app: 1 }; }
-  _caps() { return ['status', 'fill', 'maint', 'ota', 'link', 'regs', 'clock', 'capacity'].concat(this.chip === 'esp32c3' ? ['range'] : [], this.variant === 'debug' ? ['logs', 'raw'] : []); }
+  _caps() { return ['status', 'fill', 'maint', 'ota', 'link', 'regs', 'clock', 'capacity'].concat(this.chip === 'esp32c3' ? ['rescal', 'range'] : [], this.variant === 'debug' ? ['logs', 'raw'] : []); }
   cmd_ping() { return {}; }
   cmd_status() { return this.statusObject(); }
   cmd_subscribe(req) {
@@ -490,6 +494,88 @@ export class FakeSensor {
     if (this.ota || this.clock.now() < this.s.trialUntil) throw new Err('busy', 'update in progress');
     this._timer('setTimeout', () => this._reboot({ reset: true }), 2000);
     return { items: 61, restart_in_s: 2 };
+  }
+  // ---- resistive output calibration (PROTOCOL.md 4.2 `maint_rescal`; the rules of firmware core/outputs.cpp). Readings are wiring + branch; the wiring is
+  // found from branch 14, branch 13 and both together; the others are checked with it taken off. The saved values are the corrected ones.
+  _resEnd() {
+    const r = this.s && this.s.res;
+    if (!r) return;
+    r.open = false; r.on = 0; r.raw = new Array(14).fill(0); r.pair = 0; r.wire = null;
+  }
+  _resReply(withNom) {
+    const r = this.s.res;
+    const o = { open: r.open, n: 14, on: r.on, done: r.raw.filter((v) => v > 0).length, pair: r.pair > 0, wire: r.wire === null ? null : Math.round(r.wire * 1000) / 1000, saved: r.saved.filter((v) => v > 0).length };
+    if (withNom) o.nom = RESCAL_NOM.slice();
+    return o;
+  }
+  _resSolve(r) {                                   // with all three readings: the wiring, and the two reference branches checked with it
+    const A = RESCAL_REF_A - 1, B = RESCAL_REF_B - 1;
+    r.wire = null;
+    const w = rescalWire(r.raw[A], r.raw[B], r.pair);
+    if (w === null) throw new Err('bad_input', 'Branches 14, 13 and both together do not fit: measure the three again.');
+    if (w > RESCAL_WIRE_MAX) throw new Err('bad_input', `The wiring is ${w.toFixed(1)} ohm (at most ${RESCAL_WIRE_MAX}): check the connection.`);
+    for (const i of [A, B]) {                      // the wiring that fits makes branch 14 or 13 differ too much from its resistor: one of the three is wrong
+      const v = r.raw[i] - w;
+      if (!(Math.abs(v - RESCAL_NOM[i]) <= rescalTol(RESCAL_NOM[i]))) throw new Err('bad_input', 'Branches 14, 13 and both together do not fit: measure the three again.');
+    }
+    r.wire = w;
+  }
+  cmd_maint_rescal(req) {
+    this._need('settings');
+    if (this.chip !== 'esp32c3') throw new Err('bad_input', 'This sensor has no resistive output.');
+    const r = this.s.res, now = this.clock.now();
+    if (r.open && now - r.lastMs > 600000) this._resEnd();                       // ten minutes without a command
+    const ops = 'op: state, start, on, set, pair_on, pair_set, save, cancel or clear.';
+    if (typeof req.op !== 'string') throw new Err('bad_input', ops);
+    if (req.op === 'state') return this._resReply(true);
+    if (!['start', 'on', 'set', 'pair_on', 'pair_set', 'save', 'cancel', 'clear'].includes(req.op)) throw new Err('bad_input', ops);
+    r.lastMs = now;
+    if (req.op === 'cancel') { this._resEnd(); return this._resReply(false); }
+    if (req.op === 'clear') { r.saved = new Array(14).fill(0); this._resEnd(); return this._resReply(false); }
+    if (req.op === 'start') {
+      if (this.clock.now() < this.s.trialUntil || this.ota) throw new Err('busy', 'Wait until the firmware update has finished.');
+      this._resEnd(); r.open = true;
+      return this._resReply(true);
+    }
+    if (!r.open) throw new Err('bad_input', 'Start the calibration first.');
+    const A = RESCAL_REF_A - 1, B = RESCAL_REF_B - 1;
+    const branchNo = () => { if (!Number.isInteger(req.n) || req.n < 1 || req.n > 14) throw new Err('bad_input', 'n: the branch, 1 to 14.'); return req.n; };
+    if (req.op === 'pair_on') { r.on = 0; return this._resReply(false); }
+    if (req.op === 'on') { r.on = branchNo(); return this._resReply(false); }
+    if (req.op === 'set') {
+      const n = branchNo(), i = n - 1, ref = i === A || i === B;
+      if (typeof req.ohm !== 'number' || !isFinite(req.ohm)) throw new Err('bad_input', 'ohm: the measured resistance in ohms.');
+      if (!ref && r.wire === null) throw new Err('bad_input', 'Measure branches 14 and 13, and both together, first.');
+      let lo = RESCAL_NOM[i] - rescalTol(RESCAL_NOM[i]), hi = RESCAL_NOM[i] + rescalTol(RESCAL_NOM[i]);
+      if (ref) hi += RESCAL_WIRE_MAX; else { lo += r.wire; hi += r.wire; }
+      if (!(req.ohm >= lo && req.ohm <= hi)) throw new Err('bad_input', `Branch ${n}: ${fmt5(lo)} to ${fmt5(hi)} ohm expected.`);
+      const before = r.raw[i], beforeWire = r.wire;
+      r.raw[i] = req.ohm;
+      if (ref && r.pair > 0 && r.raw[A] > 0 && r.raw[B] > 0) {
+        try { this._resSolve(r); } catch (e) { r.raw[i] = before; r.wire = beforeWire; throw e; }
+      }
+      return this._resReply(false);
+    }
+    if (req.op === 'pair_set') {
+      if (typeof req.ohm !== 'number' || !isFinite(req.ohm) || !(req.ohm > 0)) throw new Err('bad_input', 'ohm: the measured resistance in ohms.');
+      if (!(r.raw[A] > 0 && r.raw[B] > 0)) throw new Err('bad_input', 'Measure branch 14 and branch 13 first.');
+      const beforePair = r.pair, beforeWire = r.wire;
+      r.pair = req.ohm;
+      try { this._resSolve(r); } catch (e) { r.pair = beforePair; r.wire = beforeWire; throw e; }
+      return this._resReply(false);
+    }
+    // save: every reading checked again with the wiring off
+    if (r.wire === null) throw new Err('bad_input', 'Measure branches 14 and 13, and both together, first.');
+    const out = [];
+    for (let i = 0; i < 14; i++) {
+      if (!(r.raw[i] > 0)) throw new Err('bad_input', `Branch ${i + 1} is not measured yet.`);
+      const v = r.raw[i] - r.wire, lo = RESCAL_NOM[i] - rescalTol(RESCAL_NOM[i]), hi = RESCAL_NOM[i] + rescalTol(RESCAL_NOM[i]);
+      if (!(v >= lo && v <= hi)) throw new Err('bad_input', `Branch ${i + 1}: ${fmt5(lo + r.wire)} to ${fmt5(hi + r.wire)} ohm expected.`);
+      out.push(v);
+    }
+    r.saved = out;
+    this._resEnd();
+    return this._resReply(false);
   }
   cmd_maint_restart() {
     this._need('maintenance');
