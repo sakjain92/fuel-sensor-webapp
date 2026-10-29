@@ -282,6 +282,11 @@ export const STRINGS = {
     clkReadFail: 'Could not read the sensor clock: {e}',
 
     // Maintenance: resistive output calibration (a proof-of-concept page; production does it once over the USB-UART tool)
+    emuTitle: 'Resistive Sensor Emulation',
+    emuElectronic: '10-200 ohm (Electronic Sensor)',
+    emuSam1: '10-180 ohm (SAM1 Sensor)',
+    emuSaved: 'Saved. The output follows this sensor now.',
+    emuFail: 'Not saved: {e}',
     resTitle: 'Resistive output calibration',
     resCalibrated: 'Calibrated',
     resNotCal: 'Not calibrated',
@@ -1032,6 +1037,8 @@ export function hasCap(hello, word) {
 // resistance is read first, with the probes touching, and taken off every reading (a 4-wire meter shows about 0).
 export const RESCAL_NOM = [100e3, 47e3, 27e3, 13e3, 6.8e3, 3.6e3, 1.8e3, 1e3, 470, 249, 150, 75, 47, 20];
 export const RESCAL_TOL = 0.03, RESCAL_ABS = 5, RESCAL_PROBE_MAX = 5, RESCAL_PROBE_MIN = -1;
+// Resistive Sensor Emulation (`maint_output`): which resistive float sender the output stands in for; both linear, 10 ohm at 0 %.
+export const EMULATIONS = ['electronic', 'sam1'];
 export const RESCAL_TEST_POINTS = [10, 25, 50, 75, 100, 125, 150, 175, 200];       // the output test: the output's range, 10 to 200 ohm
 // the order of the steps: the probes touching, then branches 14 down to 1
 export function rescalSteps() {

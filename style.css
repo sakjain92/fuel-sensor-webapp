@@ -101,6 +101,7 @@ details .hint{padding:0 16px;margin:0 0 10px}
 .idbig{font:700 clamp(20px,6.4vw,28px)/1.3 var(--mono);letter-spacing:.05em;margin:4px 0 10px;overflow-wrap:anywhere}
 textarea,input[type=text],input:not([type]),input[inputmode]{background:var(--card);border:2px solid var(--ink);border-radius:6px;padding:12px;width:100%;margin:0}
 textarea{font-family:var(--mono);font-size:17px;min-height:128px;resize:vertical;display:block}
+select{font:inherit;color:inherit;background:var(--card);border:2px solid var(--ink);border-radius:6px;padding:12px;width:100%;min-height:52px;font-size:18px;font-weight:650;margin:0 0 12px}
 input[type=text],input:not([type]),input[inputmode]{min-height:52px;font-size:20px;font-weight:650;font-variant-numeric:tabular-nums}
 [aria-invalid=true]{border-color:var(--bad);box-shadow:0 0 0 2px var(--bad)}
 .msg{border-left:6px solid var(--line);padding:10px 12px;border-radius:4px;font-weight:600;margin:12px 0}

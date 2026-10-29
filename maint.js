@@ -110,6 +110,13 @@ export class Maintenance extends Emitter {
     if (!v.ok) return { ok: false, err: 'input', v };
     return this._act(async () => ({ tank: (await this._call('maint_tank', { cap_l: v.v })).tank }));
   }
+  // Resistive Sensor Emulation (`maint_output`, settings grant; a board with the resistive output): 'electronic' (10-200 ohm) or 'sam1' (10-180 ohm).
+  async saveEmulation(emulation) {
+    return this._act(async () => {
+      const r = await this._call('maint_output', { emulation });
+      return { output: { emulation: r.emulation, min_ohm: r.min_ohm, max_ohm: r.max_ohm } };
+    });
+  }
   async useDefaultTank() { return this._act(async () => ({ tank: (await this._call('maint_tank', { default: true })).tank })); }
 
   async saveSite(text) {

@@ -1,14 +1,14 @@
 // The Maintenance screen (behind the login): tank size, site ID and location, firmware, crash report, reset, fill reports, restart.
 import {
   STR, t, fin, fmtWait, fmtLpmm, fmtLitres, numStr, tankText, grantText, buildText, validateTank, parseCapacity, fmtNum, CAP_DEFAULT, siteLocText, fixIsWeak, resetPhraseOk,
-  fillWhen, fillL, fillFlagNames, fillShareText, errText, clockDiffText, clockSrcText, hasCap as hasFeature,
+  fillWhen, fillL, fillFlagNames, fillShareText, errText, clockDiffText, clockSrcText, hasCap as hasFeature, EMULATIONS,
 } from '../core.js';
 import { makeReportFile, deliverFile, downloadBlob } from '../export.js';
 import { $, msg, busy, confirmBox, copyTxt } from './dom.js';
 
 export function initMaint(ctx) {
   const { maint, app } = ctx;
-  let tankDirty = false, capDirty = false;
+  let tankDirty = false, capDirty = false, emuDirty = false;
   let fix = null;                       // the position found for the site location
   let fills = null;
   let allFile = null;
@@ -39,6 +39,8 @@ export function initMaint(ctx) {
     $('cClock').hidden = !g.settings;
     $('cReset').hidden = !g.settings;
     $('cRes').hidden = !g.settings || !hasFeature(ctx.client.hello, 'rescal');     // a board with the resistive output
+    $('cEmu').hidden = !g.settings || !hasFeature(ctx.client.hello, 'rescal') || !ms.output;   // (and a firmware that reports it)
+    if (!$('cEmu').hidden && !emuDirty && EMULATIONS.includes(ms.output.emulation)) $('emuSel').value = ms.output.emulation;
     $('cFw').hidden = !g.firmware;
     $('tankNow').textContent = tk ? t('tankNow', { d: tankText(tk) }) : '';
     if (tk && !tankDirty) {
@@ -61,6 +63,16 @@ export function initMaint(ctx) {
     const r = await maint.loadState();
     if (!r.ok && !r.ended) msg('mErr', r.text, 'bad'); else $('mErr').hidden = true;
     renderMaint();
+  }
+
+  // ---- Resistive Sensor Emulation: a drop-down and Save; what the sensor holds is shown again at every load
+  async function emuSave() {
+    $('emuMsg').hidden = true;
+    const btn = $('bEmuSave');
+    busy(btn, true, STR.saving);
+    const r = await maint.saveEmulation($('emuSel').value);
+    busy(btn, false);
+    if (r.ok) { emuDirty = false; msg('emuMsg', STR.emuSaved, 'ok'); await load(); } else if (!r.ended) msg('emuMsg', t('emuFail', { e: r.text }), 'bad');
   }
 
   // ---- resistive output calibration (the page itself is ui/rescal.js)
@@ -281,6 +293,8 @@ export function initMaint(ctx) {
   $('bCapSave').addEventListener('click', () => capSave(false));
   $('bCapDef').addEventListener('click', () => { capDirty = false; capSave(true); });
   $('bTankSave').addEventListener('click', () => tankSave(false));
+  $('emuSel').addEventListener('change', () => { emuDirty = true; $('emuMsg').hidden = true; });
+  $('bEmuSave').addEventListener('click', emuSave);
   confirmBox($('bTankDef'), $('defConf'), $('bDefYes'), $('bDefNo'), () => { tankDirty = false; tankSave(true); });
   confirmBox($('bClkSet'), $('clkConf'), $('bClkYes'), $('bClkNo'), clockSet);
   confirmBox($('bResClr'), $('resConf'), $('bResYes'), $('bResNo'), clearRes);
@@ -304,7 +318,7 @@ export function initMaint(ctx) {
 
   return {
     enter() {
-      for (const id of ['mErr', 'capMsg', 'capErr', 'tankMsg', 'siteMsg', 'siteErr', 'locMsg', 'crashMsg', 'rsMsg', 'rstMsg', 'fillsAllMsg', 'clkErr', 'clkMsg', 'clkConf', 'resMsg', 'resConf']) $(id).hidden = true;
+      for (const id of ['mErr', 'capMsg', 'capErr', 'tankMsg', 'siteMsg', 'siteErr', 'locMsg', 'crashMsg', 'rsMsg', 'rstMsg', 'fillsAllMsg', 'clkErr', 'clkMsg', 'clkConf', 'resMsg', 'resConf', 'emuMsg']) $(id).hidden = true;
       resSaved = null;
       fix = null;
       clk = null;                                                  // never show the clock of the sensor visited before

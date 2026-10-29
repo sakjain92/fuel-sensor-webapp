@@ -95,7 +95,8 @@ export class FakeSensor {
       clockOffsetMs: o.rtc ? (o.rtcOffsetS || 0) * 1000 : null,     // sensor UTC = this clock + offset; null = the sensor does not know the time
       trialUntil: 0, rolledBack: false,
       link: { mode: 'auto', phy: '2M', pending: false },
-      res: { open: false, on: 0, raw: new Array(14).fill(0), probe: null, saved: new Array(14).fill(0), lastMs: 0 },   // resistive output calibration
+      res: { open: false, on: 0, raw: new Array(14).fill(0), probe: null, saved: new Array(14).fill(0), lastMs: 0 },
+      emulation: 'electronic',                                       // Resistive Sensor Emulation (kept across Reset to defaults, like the calibration)   // resistive output calibration
       bootMs: this.clock.now(),
     };
     this.fill = { stage: 'idle' };
@@ -432,8 +433,18 @@ export class FakeSensor {
       grant: { ...this.session.grant },
       coredump: { present: !!s.coredump, size: s.coredump ? s.coredump.length : 0 },
       tank: this._tank(),
+      ...(this.chip === 'esp32c3' ? { output: this._emuReply() } : {}),
       ota: { trial: this.clock.now() < s.trialUntil, trial_remaining_s: Math.max(0, Math.round((s.trialUntil - this.clock.now()) / 1000)), rolled_back: s.rolledBack, rejected_version: '', slot_bytes: this.slotBytes },
     };
+  }
+  _emuReply() { return { emulation: this.s.emulation, min_ohm: 10, max_ohm: this.s.emulation === 'sam1' ? 180 : 200 }; }
+  // Resistive Sensor Emulation (PROTOCOL.md 4.2 `maint_output`): 'electronic' (10-200 ohm) or 'sam1' (10-180 ohm); choosing the same again changes and counts nothing.
+  cmd_maint_output(req) {
+    this._need('settings');
+    if (this.chip !== 'esp32c3') throw new Err('bad_input', 'This sensor has no resistive output.');
+    if (req.emulation !== 'electronic' && req.emulation !== 'sam1') throw new Err('bad_input', 'emulation: electronic or sam1.');
+    if (req.emulation !== this.s.emulation) { this.s.emulation = req.emulation; this.s.changes++; }
+    return this._emuReply();
   }
   cmd_maint_tank(req) {
     this._need('settings');
