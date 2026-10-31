@@ -15,6 +15,7 @@ const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 export const DEMO_RESPONSE = 'DEM0'.repeat(26);               // 104 symbols
 const DEFAULT_GRANT = { settings: true, firmware: true, calibration: false, older: false, service: false, hours: 1 };
 const SLOT_BYTES = 1966080;
+const RAW_POINTS = 169, RAW_STEP_M = 0.002502274001017213;      // the raw frame of PROTOCOL.md 9
 const fmt5 = (x) => String(Number(x.toPrecision(5)));          // C's %.5g, as the firmware prints a limit
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 // maint_time takes the phone's unix seconds from 2026-01-01 to 2099-12-31 (PROTOCOL.md 4.2); anything else is bad_input
@@ -63,6 +64,7 @@ export class FakeSensor {
     this.grant = { ...DEFAULT_GRANT, ...(o.grant || {}) };
     this.loginCode = o.loginCode || DEMO_RESPONSE;
     this.statusMs = o.statusMs || 1000;
+    this.rawMs = o.rawMs || 100;                   // one raw frame (debug builds, after raw_start)
     this.settleMinS = o.settleMinS || 75;
     this.settleMaxS = o.settleMaxS || 300;
     this.pourLps = o.pourLps || 1.2;               // litres per second while the stage is "filling"
@@ -134,6 +136,7 @@ export class FakeSensor {
   }
   _resetConn() {
     this._resEnd();
+    this._rawEnd();
     this.subs = new Set();
     this.session = null;
     this.ota = null;
@@ -504,7 +507,7 @@ export class FakeSensor {
     if (req.confirm !== 'RESET') throw new Err('confirm', 'send "confirm":"RESET"');
     if (this.ota || this.clock.now() < this.s.trialUntil) throw new Err('busy', 'update in progress');
     this._timer('setTimeout', () => this._reboot({ reset: true }), 2000);
-    return { items: 61, restart_in_s: 2 };
+    return { items: 125, restart_in_s: 2 };
   }
   // ---- resistive output calibration and output test (PROTOCOL.md 4.2 `maint_rescal`; the rules of firmware core/outputs.cpp). A reading is probes + branch;
   // the probes' own resistance is read first and taken off the others. The saved values are the corrected ones.
@@ -608,7 +611,8 @@ export class FakeSensor {
       s.tank = { l_mm: 1755, w_mm: 790, h_mm: 190, custom: false, cap_l: 240 };
       s.fuel = { filled_l: 0, drained_l: 0, fills: 0, drains: 0, active: 'none', pending_l: 0 };
       s.reports = []; s.sinceReset = 0; s.changes++;
-      s.site_id = null; s.site_lat = null; s.site_lon = null;               // the site ID and location are cleared too (items = 61)
+      s.site_id = null; s.site_lat = null; s.site_lon = null;               // the site ID and location are cleared too
+      s.emulation = 'electronic';                                           // and the sensor type (items = 125); the factory calibration (s.res.saved) stays
       this.fill = { stage: 'idle' };
     }
     const prev = s.fw;
@@ -620,6 +624,8 @@ export class FakeSensor {
       this.online = true;
       s.boots++;
       s.bootMs = this.clock.now();
+      this._logs = [];
+      this._logSeq = 1;
       if (version) {
         s.trialUntil = this.clock.now() + this.trialMs;
         if (this.hooks.rollback) {                    // the new firmware fails its own check and the old one comes back
@@ -650,9 +656,53 @@ export class FakeSensor {
     }
     return { first, lost: since === 0 ? 0 : lost, uptime_ms: this.uptimeS() * 1000, debug: showDebug, lines, next };
   }
-  cmd_debug() { return { note: 'lab only' }; }
-  cmd_raw_start() { return { radar: {}, tick_hz: 1000 }; }
-  cmd_raw_stop() { return {}; }
+  // The level algorithm's internals (core/commands_debug.cpp): made-up but shaped like the firmware's reply.
+  cmd_debug() {
+    const level = this.s.level_mm, st = this.hooks.estimateState || 'confirmed';
+    return {
+      have_estimate: true, t_s: r2((this._rawSeq || 0) / 10), h_mm: r2(level), state: st, cycle: 'anchored', channel: 'surface', uncertain: st !== 'confirmed', stable: true,
+      verifying: false, recheck: false, doubt: false, disturbed: false, hb: r2(level), hs: r2(level), b: r2(232.77 + 0.462 * level), s: r2(232.77 - level),
+      b_env: r2(232.9 + 0.462 * level), s_env: r2(232.5 - level), pstd: 2.5, n: 1.46229, c0_s: 0.12, leak_mm: 0.01, gap_mm: 0.05,
+      stack_free_tracker: 3100, stack_free_radar: 2400, heap_free: 90000,
+    };
+  }
+  // The debug raw stream (PROTOCOL.md 9): 10 `raw` frames a second and a level `estimate` every 4th frame. The echo is made up: the
+  // chip's own leakage at the start, the fuel surface and the tank floor (the floor appears (n-1) x level farther away under fuel).
+  cmd_raw_start() {
+    if (this.s.link.mode === 'range') throw new Err('link_mode', 'Switch the link to fast first (send link with "mode":"fast").');
+    this._rawEnd();
+    this._rawSeq = 0;
+    this._rawTimer = this._timer('setInterval', () => this._rawFrame(), this.rawMs);
+    return {
+      radar: { start_point: -8, num_points: RAW_POINTS, step_length: 1, hwaas: 183, sweeps_per_frame: 1, profile: 1, prf: 'PRF_19_5_MHz',
+        receiver_gain: 10, frame_rate_hz: 10, base_step_length_m: RAW_STEP_M },
+      tick_hz: 1000,
+    };
+  }
+  cmd_raw_stop() { this._rawEnd(); return {}; }
+  _rawEnd() {
+    if (this._rawTimer) { this.clock.clearInterval(this._rawTimer); this._rawTimer = null; }
+  }
+  _rawFrame() {
+    if (!this.out || !this.notifying) return;
+    const seq = this._rawSeq++;
+    const level = this.s.level_mm;
+    const floor = 232.77 + 0.462 * level, surface = 232.77 - level;
+    const bytes = new Uint8Array(RAW_POINTS * 4), v = new DataView(bytes.buffer);
+    for (let i = 0; i < RAW_POINTS; i++) {
+      const d = (-8 + i) * RAW_STEP_M * 1000;
+      let a = d >= -12.5 ? 22000 * Math.exp(-(d + 12.5) / 12) : 22000 * Math.exp((d + 12.5) / 6);          // the chip's own leakage
+      a += 5700 * Math.exp(-0.5 * ((d - floor) / 17) ** 2);                                          // the tank floor
+      if (level > 12) a += 420 * Math.exp(-0.5 * ((d - surface) / 10) ** 2);                          // the fuel surface
+      const ph = (4 * Math.PI * d) / 4.96;
+      const re = a * Math.cos(ph) + (this._rand() - 0.5) * 30, im = a * Math.sin(ph) + (this._rand() - 0.5) * 30;
+      v.setInt16(4 * i, Math.max(-32768, Math.min(32767, Math.round(re))), true);
+      v.setInt16(4 * i + 2, Math.max(-32768, Math.min(32767, Math.round(im))), true);
+    }
+    const now = this.clock.now();
+    this._send({ ev: 'raw', seq, tick: now % 4294967296, rx: now % 4294967296, temp: 38, flags: this.hooks.rawFlags || 0, iq: base64Encode(bytes) });
+    if (seq % 4 === 0) this._send({ ev: 'estimate', seq, t: seq / 10, h: r2(level), out: r2(level), state: this.hooks.estimateState || 'confirmed', cycle: 'anchored', src: 'estimate', flags: this.hooks.estimateFlags || [] });
+  }
 
   // ------------------------------------------------------------------ fill reports (section 6)
   _fillStage() {

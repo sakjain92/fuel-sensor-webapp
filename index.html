@@ -13,10 +13,16 @@
 </head>
 <body>
 <header class="top"><span class="brand" role="img" aria-label="MRM PROCOM"></span><span data-t="appTitle"></span><b id="demoTag" class="tag" data-t="demoTag" hidden></b></header>
+<div class="bars">
 <div id="lostBar" class="banner lostbar" role="alert" hidden>
   <p><b data-t="bt_lost"></b> <span data-t="bt_lostHint"></span></p>
   <button id="bReconnect" class="btn" type="button" data-t="bt_reconnect"></button>
   <p id="lostMsg" hidden></p>
+</div>
+<div id="recBar" class="banner recbar" role="status" hidden>
+  <span id="recBarText"></span>
+  <button id="bRecBar" class="btn" type="button" data-go="viz" data-t="recBarOpen"></button>
+</div>
 </div>
 <main>
 
@@ -117,6 +123,7 @@
   <button id="bMaint" class="btn big" type="button"></button>
   <button id="bRegs" class="btn gap" type="button" data-t="rgBtn"></button>
   <button id="bLogs" class="btn gap" type="button" data-t="lgBtn" hidden></button>
+  <button id="bViz" class="btn gap" type="button" data-t="vizBtn" hidden></button>
   <p class="hint center mt" data-t="bt_disconnectNote"></p>
   <div class="center"><button id="bDisc" class="lnk" type="button" data-t="bt_disconnect"></button></div>
 </section>
@@ -279,7 +286,7 @@
     <button id="bRst" class="btn" type="button" data-t="rstBtn"></button>
     <div id="rstConf" class="confirm" hidden>
       <p data-t="rstQ"></p>
-      <ul class="rstl"><li data-t="rstL1"></li><li data-t="rstL2"></li><li data-t="rstL3"></li><li data-t="rstL4"></li><li data-t="rstL5"></li></ul>
+      <ul class="rstl"><li data-t="rstL1"></li><li data-t="rstL2"></li><li data-t="rstL3"></li><li data-t="rstL4"></li><li data-t="rstL5"></li><li data-t="rstL6"></li></ul>
       <p class="hint" data-t="rstAfter"></p>
       <label for="rstIn" class="big2" data-t="rstType"></label>
       <input id="rstIn" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="done">
@@ -401,10 +408,87 @@
   <button class="lnk" type="button" data-go="" data-t="back"></button>
   <h1 data-t="lgTitle"></h1>
   <p class="hint" data-t="lgIntro"></p>
+  <button id="bLgViz" class="btn" type="button" data-go="viz" data-t="vizBtn"></button>
   <label class="chk"><input id="lgDebug" type="checkbox"><span data-t="lgDebugLines"></span></label>
   <div class="row3"><button id="bLgPause" class="btn" type="button"></button><button id="bLgClear" class="btn" type="button" data-t="lgClear"></button><button id="bLgCopy" class="btn" type="button" data-t="lgCopy"></button></div>
   <p id="lgInfo" class="hint" role="status"></p>
   <pre id="lgOut" class="logout" tabindex="0"></pre>
+</section>
+
+<section id="pViz" hidden>
+  <button class="lnk" type="button" data-go="" data-t="vizBack"></button>
+  <h1 data-t="vizTitle"></h1>
+  <p class="hint" data-t="vizIntro"></p>
+  <p id="recKeep" class="hint recKeep" data-t="recKeep" hidden></p>
+
+  <div class="vzdock">
+    <p id="vzMsg" class="msg" hidden></p>
+    <button id="bVzFast" class="btn pri" type="button" data-t="vizSwitchFast" hidden></button>
+    <div class="vzbox"><canvas id="vzCanvas" class="vzcanvas" role="img"></canvas></div>
+    <dl class="vzvals" aria-label="Current values">
+      <div><dt data-t="lvLevel"></dt><dd id="lvLevel">–</dd></div>
+      <div><dt data-t="lvLitres"></dt><dd id="lvLitres">–</dd></div>
+      <div><dt data-t="lvPct"></dt><dd id="lvPct">–</dd></div>
+      <div><dt data-t="lvStatus"></dt><dd id="lvStatus">–</dd></div>
+      <div><dt data-t="lvEst"></dt><dd id="lvEst">–</dd></div>
+      <div><dt data-t="lvShown"></dt><dd id="lvShown">–</dd></div>
+      <div><dt data-t="lvTemp"></dt><dd id="lvTemp">–</dd></div>
+      <div><dt data-t="lvLink"></dt><dd id="lvLink">–</dd></div>
+    </dl>
+    <p class="vzline"><span id="vzPeak"></span> <span id="vzCursor"></span></p>
+    <p id="vzStat" class="vzline hint"></p>
+    <p id="vzFlags" class="vzline warnline"></p>
+    <details class="vzset">
+      <summary data-t="vizSettings"></summary>
+      <p id="vzEst" class="vzline hint"></p>
+      <button id="bVzPause" class="btn" type="button"></button>
+      <label class="chk"><input id="vzPeakHold" type="checkbox"><span data-t="vizPeakHold"></span></label>
+      <button id="bVzPeakReset" class="btn" type="button" data-t="vizPeakReset" hidden></button>
+      <label class="vzlab" for="vzRange" data-t="vizRangeLabel"></label>
+      <select id="vzRange"></select>
+      <label class="vzlab" for="vzScale" data-t="vizScaleLabel"></label>
+      <select id="vzScale"></select>
+    </details>
+  </div>
+
+  <div id="cRec" class="card">
+    <h2 data-t="recTitle"></h2>
+    <div id="recCap" class="reccap">
+      <p class="hint" data-t="recCapHint"></p>
+      <button id="bRecCap" class="btn" type="button" data-t="recCapBtn"></button>
+      <label class="chk"><input id="recCapAll" type="checkbox"><span data-t="recCapAll"></span></label>
+      <p id="recCapInfo" class="hint" hidden></p>
+      <p id="recCapMsg" class="msg" hidden></p>
+    </div>
+    <div id="recSetup">
+      <p class="hint" data-t="recIntro"></p>
+      <input id="recNotes" type="text" maxlength="300" autocomplete="off" data-tp="recNotesPh">
+      <label class="vzlab" for="recMode" data-t="recModeLabel"></label>
+      <select id="recMode"></select>
+      <button id="bRecStart" class="btn pri mt" type="button" data-t="recStart"></button>
+    </div>
+    <div id="recLive" hidden>
+      <p id="recInfo" class="recinfo"></p>
+      <p id="recWait" class="msg warn" hidden data-t="recWaiting"></p>
+      <h3 data-t="recAddTitle"></h3>
+      <select id="recKind" aria-label="Reading"></select>
+      <div class="row2"><input id="recVal" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="done" data-tp="recValuePh"><input id="recText" type="text" maxlength="200" autocomplete="off" enterkeyhint="done" data-tp="recTextPh"></div>
+      <button id="bRecAdd" class="btn pri" type="button" data-t="recAdd"></button>
+      <p id="recAddMsg" class="msg" hidden></p>
+      <button id="bRecStop" class="btn mt" type="button" data-t="recStop"></button>
+    </div>
+    <p id="recErr" class="msg bad" hidden></p>
+    <h3 data-t="recLogTitle"></h3>
+    <ul id="recLog" class="log reclog"></ul>
+  </div>
+
+  <div id="cRecList" class="card">
+    <h2 data-t="recListTitle"></h2>
+    <ul id="recList" class="log"></ul>
+    <button id="bRecShareAll" class="btn mt" type="button" data-t="recShareAll" hidden></button>
+    <p id="recListMsg" class="msg" hidden></p>
+    <p id="recStorage" class="hint"></p>
+  </div>
 </section>
 
 <section id="pWait" hidden>

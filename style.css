@@ -160,3 +160,40 @@ input[type=text],input:not([type]),input[inputmode]{min-height:52px;font-size:20
 #cnFail p{margin:0 0 8px}
 #cnFail ul{margin:0 0 10px;padding-left:1.4em}
 #cnFail li{margin:0 0 4px}
+/* Sensor visualization (debug builds) */
+.vzdock{position:sticky;top:0;z-index:4;background:var(--bg);padding:2px 0 4px;margin:0 -2px;border-bottom:1px solid var(--line)}
+.vzdock .vzline{margin:2px 0;min-height:1.2em}
+.vzbox{margin:6px 0 4px}
+.vzcanvas{display:block;width:100%;height:190px;background:var(--card);border:1px solid var(--line);border-radius:6px;touch-action:pan-y;-webkit-user-select:none;user-select:none}
+.vzline{margin:4px 0;min-height:1.3em}
+.vzline.hint{font-size:14px}
+.warnline{color:var(--bad);font-weight:650}
+.vzlab{display:block;margin:12px 0 4px;font-weight:650}
+.vzset{margin:4px 0 2px}
+.vzset summary{cursor:pointer;font-weight:650;padding:6px 0;min-height:36px}
+h3{font-size:16px;margin:14px 0 6px}
+.recinfo{font-weight:700;margin:6px 0;font-variant-numeric:tabular-nums}
+.reclog{max-height:260px;overflow:auto;font-size:15px}
+.reclog li{display:flex;gap:10px}
+.reclog time{color:var(--mut);font-variant-numeric:tabular-nums;flex:none}
+.reclog .bad{color:var(--bad);font-weight:650}
+.reclog .ref{font-weight:650}
+.recbar{position:sticky;top:0;z-index:6;display:flex;align-items:center;justify-content:space-between;gap:10px;max-width:560px;margin:0 auto;background:var(--ok);color:var(--ok2)}
+.recbar.wait{background:var(--warn);color:var(--warn2)}
+.recbar .btn{width:auto;min-height:40px;font-size:16px;padding:6px 14px;background:#fff;color:#000;border-color:#fff}
+.recrow{display:flex;flex-direction:column;gap:8px}
+.recrow .row3 .btn,.recrow .row2 .btn{min-height:46px;font-size:16px}
+.recparts{margin:0}
+.recparts li{display:flex;flex-direction:column;gap:6px;padding:8px 0}
+.bars{position:sticky;top:0;z-index:6}
+.bars .lostbar{position:static}
+.bars .recbar{position:static}
+.vzvals{display:grid;grid-template-columns:repeat(4,1fr);gap:4px 6px;margin:4px 0}
+.vzvals div{min-width:0}
+.vzvals dt{font-size:11px;color:var(--mut);line-height:1.2}
+.vzvals dd{margin:0;font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vzline{font-size:14px}
+.warnline:empty{min-height:0}
+.reccap{margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.reclog .data{color:var(--mut);font-size:14px}
+.recKeep{margin:2px 0 6px}

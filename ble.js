@@ -520,3 +520,9 @@ export class WebBluetoothTransport {
     try { if (this.device && this.device.gatt && this.device.gatt.connected) this.device.gatt.disconnect(); } catch (e) { /* ignore */ }
   }
 }
+
+// A device whose Bluetooth advertisements are listened to, with no connection: the capacitive sensor next to the radar sensor (capble.js).
+// `all` lists every device in the browser's chooser, else only names starting with TD or Escort. Call it straight from a tap.
+export function requestAdvertiser(bluetooth, { all = false } = {}) {
+  return bluetooth.requestDevice(all ? { acceptAllDevices: true } : { filters: [{ namePrefix: 'TD' }, { namePrefix: 'Escort' }] });
+}

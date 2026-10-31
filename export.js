@@ -48,3 +48,28 @@ export async function deliverFile(file, env = {}) {
   (env.download || downloadBlob)(blob, file.name);
   return 'downloaded';
 }
+
+// Recording files (plain text, text/plain: Chrome's share sheet takes no other kind of file). `files` = [{name, text}]. One tap shares
+// them all through the phone's share sheet when it can; else each is saved to the Downloads folder (a short pause between them, so the
+// browser does not take the later ones for spam). Resolves 'shared' | 'cancelled' | 'downloaded'.
+export const REC_MIME = 'text/plain';
+export async function deliverTextFiles(files, env = {}) {
+  const nav = env.navigator === undefined ? globalThis.navigator : env.navigator;
+  const wait = env.wait || ((ms) => new Promise((r) => setTimeout(r, ms)));
+  const made = files.map((f) => (typeof File === 'function' ? new File([f.text], f.name, { type: REC_MIME }) : new Blob([f.text], { type: REC_MIME })));
+  if (nav && typeof nav.canShare === 'function' && typeof nav.share === 'function' && typeof File === 'function') {
+    let can = false;
+    try { can = !!nav.canShare({ files: made }); } catch (e) { can = false; }
+    if (can) {
+      try { await nav.share({ files: made, title: files[0] ? files[0].name : '' }); return 'shared'; } catch (e) {
+        if (e && e.name === 'AbortError') return 'cancelled';
+        // not allowed (too big for the target, no user gesture left): save instead
+      }
+    }
+  }
+  for (let i = 0; i < files.length; i++) {
+    (env.download || downloadBlob)(made[i], files[i].name);
+    if (i < files.length - 1) await wait(600);
+  }
+  return 'downloaded';
+}

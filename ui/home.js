@@ -1,7 +1,7 @@
 // The dashboard: level, litres, percentage, status, totals, Bluetooth line, device details, Raw ADC Value table.
 import {
   STR, t, fin, fmtLitres, fmtMm, fmtPct, fmtLpmm, fmtNum, fmtDuration, fmtAgo, levelOf, litresOf, capacityOf, fillPctOf, clampPct, rawAdcOf,
-  rawAdcFromLitres, RAW_ADC_MAX, statusView, fuelView, tiltView, healthFlags, buildText, tankText, lpmmOf, siteLocText, linkSummary,
+  rawAdcFromLitres, RAW_ADC_MAX, statusView, fuelView, tiltView, healthFlags, buildText, tankText, lpmmOf, siteLocText, linkSummary, hasCap,
 } from '../core.js';
 import { $, rows } from './dom.js';
 
@@ -40,6 +40,7 @@ export function initHome(ctx) {
     $('rd').hidden = !st;
     $('bMaint').textContent = ctx.maint.active ? STR.maintOpen : STR.maint;
     $('bLogs').hidden = ctx.variant !== 'debug';
+    $('bViz').hidden = !(ctx.variant === 'debug' && hasCap(client.hello, 'raw'));
     renderBt();
     if (!st) return;
     $('rd').className = app.lost ? 'stale' : '';
@@ -108,7 +109,18 @@ export function initHome(ctx) {
   $('bMaint').addEventListener('click', () => ctx.nav.go('maint'));
   $('bRegs').addEventListener('click', () => ctx.nav.go('regs'));
   $('bLogs').addEventListener('click', () => ctx.nav.go('logs'));
-  $('bDisc').addEventListener('click', () => ctx.disconnect());
+  $('bViz').addEventListener('click', () => ctx.nav.go('viz'));
+  let discArmed = null;                                    // a recording of hours is not ended by a tap on Disconnect: it asks once more
+  $('bDisc').addEventListener('click', () => {
+    if (ctx.recorder && ctx.recorder.active && discArmed === null) {
+      const b = $('bDisc');
+      b.textContent = STR.recDiscAgain;
+      discArmed = setTimeout(() => { discArmed = null; b.textContent = STR.bt_disconnect; }, 6000);
+      return;
+    }
+    if (discArmed !== null) { clearTimeout(discArmed); discArmed = null; $('bDisc').textContent = STR.bt_disconnect; }
+    ctx.disconnect();
+  });
 
   return { enter: render, leave() {}, tick };
 }

@@ -1,7 +1,7 @@
 // MRM fuel sensor phone app: start-up, connection, routing between the screens.
 // Everything the screens need hangs off `ctx`; the screens never touch Web Bluetooth (they talk to ctx.client).
 import { STR, t, parseQuery, browserSupport, hasCap } from './core.js';
-import { JsonLinesClient, WebBluetoothTransport } from './ble.js';
+import { JsonLinesClient, WebBluetoothTransport, requestAdvertiser } from './ble.js';
 import { Maintenance } from './maint.js';
 import { FillFlow } from './fill.js';
 import { LinkControl } from './link.js';
@@ -18,9 +18,13 @@ import { initFw } from './ui/fw.js';
 import { initRescal } from './ui/rescal.js';
 import { initRegs } from './ui/regs.js';
 import { initLogs } from './ui/logs.js';
+import { initViz } from './ui/viz.js';
+import { Recorder } from './recorder.js';
+import { RawFeed } from './rawfeed.js';
+import { LazyRecStore } from './recstore.js';
 import { initWait } from './ui/wait.js';
 
-const PAGES = ['pUnsupported', 'pConnect', 'pHome', 'pLogin', 'pMaint', 'pFw', 'pRes', 'pRegs', 'pLogs', 'pWait'];
+const PAGES = ['pUnsupported', 'pConnect', 'pHome', 'pLogin', 'pMaint', 'pFw', 'pRes', 'pRegs', 'pLogs', 'pViz', 'pWait'];
 
 async function main() {
   applyStrings();
@@ -66,6 +70,8 @@ async function main() {
   const geo = browserGeo();
   const fill = new FillFlow({ client, geo, storage: makeStorage(), clock, mac: q.sensor ? q.sensor.mac : '' });
   const link = new LinkControl({ client, clock });
+  const feed = new RawFeed({ client });                          // the raw radar stream, shared by the live plot and the recorder
+  const recorder = new Recorder({ client, feed, store: new LazyRecStore(), clock, app: { build: location.host, ua: navigator.userAgent, tzOffsetMin: new Date().getTimezoneOffset() } });
 
   // ---- navigation
   const nav = {
@@ -85,6 +91,7 @@ async function main() {
       if (maint.active && maint.grant.settings && hasCap(client.hello, 'rescal')) showPage('pRes'); else nav.go('maint');
     } else if (h === 'regs') showPage('pRegs');
     else if (h === 'logs' && ctx.variant === 'debug') showPage('pLogs');
+    else if (h === 'viz' && ctx.variant === 'debug' && hasCap(client.hello, 'raw')) showPage('pViz');
     else showPage('pHome');
   }
 
@@ -98,6 +105,7 @@ async function main() {
     try { await client.subscribe(['status', 'link']); } catch (e) { /* the status event follows, or the link is down again */ }
     fill.start();                                  // the first fill_state reply brings the newest report (`last`) for the card
     link.refresh();
+    recorder.resume().catch(() => {});                   // a recording that waited for the link goes on
     bus.emit('connected');
     route();
   }
@@ -118,6 +126,7 @@ async function main() {
     }
   }
   function disconnect() {
+    if (recorder.active) recorder.stop('user_disconnect');         // the data is kept; the person chose to leave
     fill.dispose();
     client.disconnect();
     app.everConnected = false;
@@ -147,7 +156,9 @@ async function main() {
 
   // ---- the context the screens use
   const ctx = {
-    $, client, app, bus, clock, maint, fill, link, geo, nav, mode: q.demo ? 'demo' : 'ble', sensor: q.sensor,
+    $, client, app, bus, clock, maint, fill, link, geo, nav, recorder, feed, mode: q.demo ? 'demo' : 'ble', sensor: q.sensor,
+    // the capacitive sensor's Bluetooth broadcast (capble.js)
+    adv: { supported: !!navigator.bluetooth, choose: (o) => requestAdvertiser(navigator.bluetooth, o) },
     demoCode: demoKit ? demoKit.loginCode : '', variant: '',
     pace: q.demo === 'fast' ? { firstTryMs: 1500, retryMs: 500, dropWaitMs: 8000, giveUpMs: 6500 } : { firstTryMs: 5000, retryMs: 3000 },
     onConnected,
@@ -178,18 +189,31 @@ async function main() {
   screens.pRes = initRescal(ctx);
   screens.pRegs = initRegs(ctx);
   screens.pLogs = initLogs(ctx);
+  screens.pViz = initViz(ctx);
+  const recUi = screens.pViz.record;
   screens.pWait = initWait(ctx);
 
   // ---- wiring
   for (const el of document.querySelectorAll('[data-go]')) el.addEventListener('click', () => nav.go(el.getAttribute('data-go')));
   $('bReconnect').addEventListener('click', reconnect);
+  // While a recording waits for the link (the sensor is being power-cycled, or the phone slept) try to reconnect by itself, for as long as it takes.
+  let rcTimer = null;
+  function syncAutoReconnect() {
+    if (recorder.state === 'waiting' && rcTimer === null) {
+      setTimeout(() => { if (recorder.state === 'waiting' && !client.connected && !app.reconnecting && !app.wait) reconnect(); }, 2500);
+      rcTimer = setInterval(() => { if (recorder.state === 'waiting' && !client.connected && !app.reconnecting && !app.wait) reconnect(); }, 6000);
+    } else if (recorder.state !== 'waiting' && rcTimer !== null) { clearInterval(rcTimer); rcTimer = null; }
+  }
+  recorder.on('change', syncAutoReconnect);
+  if (!q.demo) window.addEventListener('beforeunload', (e) => { if (recorder.active) { e.preventDefault(); e.returnValue = ''; } });   // (a slip that would close a recording of hours asks first)
   window.addEventListener('hashchange', route);
   document.addEventListener('visibilitychange', () => { if (!document.hidden && app.lost && !app.reconnecting) reconnect(); });
-  window.addEventListener('pagehide', () => { try { client.disconnect(); } catch (e) { /* closing anyway */ } });
+  window.addEventListener('pagehide', () => { try { recorder.flushNow(); client.disconnect(); } catch (e) { /* closing anyway */ } });
   window.addEventListener('pageshow', (e) => { if (e.persisted) { app.everConnected = false; app.status = null; route(); } });   // back from the page cache: the link is gone
   setInterval(() => {
     const s = screens[app.page];
     if (s && s.tick) s.tick();
+    if (app.page !== 'pViz') recUi.barTick();
     if (app.page === 'pHome') fillUi.tick();
   }, 1000);
 
