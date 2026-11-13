@@ -4,13 +4,14 @@ import { STR, t } from '../core.js';
 import { REF_KINDS, RAW_MODES, PART_BYTES } from '../recorder.js';
 import { deliverTextFiles } from '../export.js';
 import { CapAdvLogger } from '../capble.js';
-import { $, msg, busy } from './dom.js';
+import { $, msg, busy, copyTxt } from './dom.js';
 
 const pad = (n) => String(n).padStart(2, '0');
 export const fmtDur = (s) => `${pad(Math.floor(s / 3600))}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`;
 const fmtClock = (pt) => { const d = new Date(pt); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
 const fmtDate = (pt) => new Date(pt).toLocaleString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 const fmtMb = (b) => (b / 1e6).toFixed(b < 1e6 ? 2 : 1);
+export const fmtMoved = (d) => (d > 0 ? '+' : d < 0 ? '−' : '') + Math.abs(d).toFixed(1);
 
 // One line of the recording log (entries come from Recorder._note).
 export function logView(e) {
@@ -30,6 +31,13 @@ export function logView(e) {
     case 'stopped': return { text: t('recLogStopped', { why: STR['recStop_' + e.reason] || e.reason }) };
     case 'app_resumed': return { text: STR.recLogAppResumed };
     case 'resume_retry': return { text: STR.recLogRetry };
+    case 'memory_store': return { text: STR.recLogMemoryStore, cls: 'bad' };
+    case 'event':                                            // (Recorder.event: the capacitive listener)
+      if (e.what === 'cap_state') return e.watching ? { text: t('recLogEv_cap_on', { name: e.name || '?' }) } : { text: STR.recLogEv_cap_off, cls: 'ref' };
+      if (e.what === 'cap_start') return { text: t('recLogEv_cap_start', { name: e.name || '?' }) };
+      if (e.what === 'cap_stop') return { text: t('recLogEv_cap_stop', { n: e.packets || 0 }) };
+      if (e.what === 'cap_failed') return { text: t('recLogEv_cap_failed', { why: STR['recCapWhy_' + e.code] || e.text || e.code || '?' }), cls: 'bad' };
+      return { text: e.what };
     case 'data': {
       const n = (x, d = 1) => (Number.isFinite(x) ? x.toFixed(d) : '–');
       return { text: t('recLogData', { mm: n(e.level_mm), l: n(e.litres), pct: n(e.fill_pct), state: e.state || e.status || '–' }), cls: 'data' };
@@ -40,7 +48,7 @@ export function logView(e) {
 
 export function initRecord(ctx) {
   const { recorder: rec } = ctx;
-  let shown = false, stopArmed = null, listBusy = false, listAgain = false, lastList = 0;
+  let shown = false, stopArmed = null, startArmed = null, listBusy = false, listAgain = false, lastList = 0;
   const armed = new Map();                                 // delete buttons waiting for their second tap
 
   // ---- selects
@@ -73,6 +81,7 @@ export function initRecord(ctx) {
     let s = t('recInfo', { t: fmtDur(rec.elapsedS), frames: rec.frames, mb });
     if (rec.lost) s += t('recInfoLost', { n: rec.lost });
     if (rec.rawMode === 'adaptive' && rec.hot) s += STR.recInfoHot;
+    if (rec.memoryOnly) s += STR.recInfoMemory;
     return s;
   }
   function renderLog() {
@@ -91,6 +100,11 @@ export function initRecord(ctx) {
       ul.appendChild(li);
     }
   }
+  // The level has moved and no reading was entered since: ask for one (the recorder decides when, never blocks).
+  function renderRemind() {
+    const d = rec.wantsRef ? rec.movedSinceRef : null;
+    msg('recRemind', d === null ? '' : t(rec.refCount ? 'recRemind' : 'recRemindStart', { mm: fmtMoved(d) }), 'warn');
+  }
   function renderError() {
     const e = rec.error;
     if (!e || rec.active) { msg('recErr', '', ''); return; }
@@ -103,7 +117,8 @@ export function initRecord(ctx) {
     $('recLive').hidden = !rec.active;
     $('recWait').hidden = rec.state !== 'waiting';
     if (rec.active) $('recInfo').textContent = info();
-    if (!rec.active) { stopArmed = null; $('bRecStop').textContent = STR.recStop; }
+    if (!rec.active) { clearTimeout(stopArmed); stopArmed = null; $('bRecStop').textContent = STR.recStop; msg('recStopMsg', '', ''); }
+    renderRemind();
     renderError();
     renderLog();
     renderBar();
@@ -119,13 +134,23 @@ export function initRecord(ctx) {
     if (!on) return;
     const wait = rec.state === 'waiting';
     $('recBar').className = 'banner recbar' + (wait ? ' wait' : '');
-    $('recBarText').textContent = wait ? STR.recBarWait : t('recBarText', { t: fmtDur(rec.elapsedS) });
+    $('recBarText').textContent = wait ? STR.recBarWait : t(rec.wantsRef ? 'recBarRemind' : 'recBarText', { t: fmtDur(rec.elapsedS) });
   }
   rec.on('change', () => { render(); wake(rec.active); });
   rec.on('log', () => { if (shown) renderLog(); });
 
   // ---- start, stop, readings
+  // A recording without notes is asked about once (later nobody can tell what it was), and never refused: the second tap starts it.
+  const disarmStart = () => { clearTimeout(startArmed); startArmed = null; $('bRecStart').textContent = STR.recStart; msg('recStartMsg', '', ''); };
+  $('recNotes').addEventListener('input', () => { if (startArmed !== null) disarmStart(); });
   $('bRecStart').addEventListener('click', async () => {
+    if (!$('recNotes').value.trim() && startArmed === null) {
+      msg('recStartMsg', STR.recNoNotes, 'warn');
+      $('bRecStart').textContent = STR.recStartNoNotes;
+      startArmed = setTimeout(disarmStart, 15000);
+      return;
+    }
+    disarmStart();
     msg('recErr', '', '');
     busy($('bRecStart'), true, STR.recStarting);
     let ok = false;
@@ -138,12 +163,16 @@ export function initRecord(ctx) {
   });
   $('bRecStop').addEventListener('click', async () => {
     if (stopArmed === null) {                                // two taps: a recording of hours is not ended by a slip of the finger
+      const d = rec.wantsRef ? rec.movedSinceRef : null;     // and the first tap says what the recording still lacks (it never refuses)
+      const lacks = !rec.refCount ? STR.recStopNoRefs : d !== null ? t('recStopMoved', { mm: fmtMoved(d) }) : '';
+      msg('recStopMsg', lacks, 'warn');
       $('bRecStop').textContent = STR.recStopAgain;
-      stopArmed = setTimeout(() => { stopArmed = null; $('bRecStop').textContent = STR.recStop; }, 4000);
+      stopArmed = setTimeout(() => { stopArmed = null; $('bRecStop').textContent = STR.recStop; msg('recStopMsg', '', ''); }, lacks ? 15000 : 4000);
       return;
     }
     clearTimeout(stopArmed);
     stopArmed = null;
+    msg('recStopMsg', '', '');
     await rec.stop('user');
     wake(false);
     render();
@@ -156,6 +185,8 @@ export function initRecord(ctx) {
     $('recVal').value = '';
     $('recText').value = '';
     msg('recAddMsg', STR.recAdded, 'ok');
+    msg('recStopMsg', '', '');
+    renderRemind();
     $('recVal').focus();
   }
   $('bRecAdd').addEventListener('click', addReading);
@@ -164,26 +195,55 @@ export function initRecord(ctx) {
 
   // ---- the capacitive sensor's Bluetooth broadcast, listened to at the same time (capble.js)
   let cap = null;
+  // Every recording says whether the capacitive sensor is in it, and why not: the state at the start (and when a recording is continued),
+  // then every start, stop and failed try of the listener while it runs.
+  const capState = () => {
+    const w = !!(cap && cap.watching);
+    return { watching: w, name: w ? cap.name : '', packets: w ? cap.packets : 0, error: cap && cap.error ? cap.error.code : '', bluetooth: !!ctx.adv.supported, can_watch: ctx.adv.canWatch === undefined ? null : ctx.adv.canWatch };
+  };
+  rec.on('started', () => rec.event('cap_state', capState()));
+  // A browser that cannot listen to broadcasts: the steps to switch the setting on (Chrome, Edge), or which browser to use instead.
+  const capBrowser = () => {
+    const ua = navigator.userAgent || '';
+    if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return { kind: 'ios' };
+    if (/Edg[A]?\//.test(ua)) return { kind: 'flag', name: 'Edge', url: 'edge://flags/#enable-experimental-web-platform-features' };
+    if (/Chrome\//.test(ua) && !/SamsungBrowser|OPR\/|Firefox|FxiOS|CriOS/.test(ua)) return { kind: 'flag', name: 'Chrome', url: 'chrome://flags/#enable-experimental-web-platform-features' };
+    return { kind: 'other' };
+  };
+  function renderCapGuide(show) {
+    $('recCapGuide').hidden = !show;
+    if (!show) return;
+    const b = capBrowser(), flag = b.kind === 'flag';
+    $('recCapSteps').hidden = !flag;
+    $('recCapGuideNote').hidden = !flag;
+    $('recCapGuideHead').textContent = flag ? t('recCapGuideHead', { browser: b.name }) : b.kind === 'ios' ? STR.recCapNoIos : STR.recCapNoChrome;
+    $('recCapFlag').textContent = flag ? b.url : '';
+  }
+  $('bRecCapCopy').addEventListener('click', () => copyTxt($('recCapFlag').textContent, $('bRecCapCopy'), 'recCapCopyMsg', $('recCapFlag')));
   function renderCap() {
     const w = !!(cap && cap.watching);
     $('bRecCap').textContent = w ? STR.recCapStop : STR.recCapBtn;
     $('recCapAll').parentElement.hidden = w;
     $('recCapInfo').hidden = !w;
-    if (w) $('recCapInfo').textContent = cap.last ? t('recCapInfo', { name: cap.name, n: cap.packets, ago: cap.agoS, rssi: cap.last.rssi === null ? '–' : cap.last.rssi }) + ' · ' + t('recCapBytes', { hex: cap.hex }) : STR.recCapWait;
+    const esc = w && cap.escort;
+    if (w) $('recCapInfo').textContent = cap.last ? t('recCapInfo', { name: cap.name, n: cap.packets, ago: cap.agoS, rssi: cap.last.rssi === null ? '–' : cap.last.rssi }) + ' · ' + (esc ? t('recCapEscort', { level: esc.level, temp: esc.temp_c, cnt: esc.cnt }) : t('recCapBytes', { hex: cap.hex })) : STR.recCapWait;
     const e = cap && cap.error;
     msg('recCapMsg', e ? (STR['recCapErr_' + e.code] ? t('recCapErr_' + e.code, { e: e.text }) : e.text) : '', e && e.code !== 'cancelled' ? 'bad' : '');
+    renderCapGuide(!!(e && e.code === 'unsupported'));
   }
   $('bRecCap').addEventListener('click', async () => {
-    if (!cap) { cap = new CapAdvLogger({ choose: ctx.adv.choose, supported: ctx.adv.supported }); cap.on('adv', (line) => rec.writeExternal(line)); cap.on('change', renderCap); }
-    if (cap.watching) { cap.stop(); return; }
-    await cap.choose({ all: $('recCapAll').checked });                  // (straight from the tap: the browser's chooser needs it)
+    if (!cap) { cap = new CapAdvLogger({ choose: ctx.adv.choose, supported: ctx.adv.supported, canWatch: ctx.adv.canWatch }); cap.on('adv', (line) => rec.writeExternal(line)); cap.on('change', renderCap); }
+    if (cap.watching) { const was = { name: cap.name, packets: cap.packets }; cap.stop(); rec.event('cap_stop', was); return; }
+    const ok = await cap.choose({ all: $('recCapAll').checked });       // (straight from the tap: the browser's chooser needs it)
+    if (ok) rec.event('cap_start', { name: cap.name });
+    else if (cap.error) rec.event('cap_failed', { code: cap.error.code, text: cap.error.text || '' });
     renderCap();
   });
 
   // ---- the saved recordings
-  async function deliver(files) {
+  async function deliver(files, env = {}) {
     try {
-      const how = await deliverTextFiles(files);
+      const how = await deliverTextFiles(files, env);
       msg('recListMsg', how === 'shared' ? STR.recShared : how === 'downloaded' ? STR.recDownloaded : '', 'ok');
     } catch (e) { msg('recListMsg', t('recShareFail', { e: (e && e.message) || 'error' }), 'bad'); }
   }
@@ -206,7 +266,7 @@ export function initRecord(ctx) {
         nm.textContent = t('recPartRow', { name: f.name, mb: fmtMb(f.bytes) });
         const row = document.createElement('div');
         row.className = 'row2';
-        row.append(button(STR.recShare, async () => deliver([(await rec.files(r.id))[i]])), button(STR.recDownload, async () => deliver([(await rec.files(r.id))[i]])));
+        row.append(button(STR.recShare, async () => deliver([(await rec.files(r.id))[i]])), button(STR.recDownload, async () => deliver([(await rec.files(r.id))[i]], { downloadOnly: true })));
         li.append(nm, row);
         ul.appendChild(li);
       });
@@ -236,7 +296,7 @@ export function initRecord(ctx) {
         li.append(head, sub);
         const row = document.createElement('div');
         row.className = 'row3';
-        row.append(button(STR.recShare, async () => deliver(await rec.files(r.id))), button(STR.recDownload, async () => deliver(await rec.files(r.id))));
+        row.append(button(STR.recShare, async () => deliver(await rec.files(r.id))), button(STR.recDownload, async () => deliver(await rec.files(r.id), { downloadOnly: true })));
         if (!active) {
           const del = button(STR.recDelete, async (b) => {
             if (!armed.has(r.id)) { b.textContent = STR.recDeleteAgain; armed.set(r.id, setTimeout(() => { armed.delete(r.id); b.textContent = STR.recDelete; }, 4000)); return; }
@@ -268,7 +328,7 @@ export function initRecord(ctx) {
   return {
     async enter() { shown = true; render(); await rec.recoverInterrupted().catch(() => {}); refreshList(); },
     leave() { shown = false; renderBar(); },
-    tick() { if (rec.active) { $('recInfo').textContent = info(); if (Date.now() - lastList > 15000) refreshList(); } if (cap && cap.watching) renderCap(); },
+    tick() { if (rec.active) { $('recInfo').textContent = info(); renderRemind(); if (Date.now() - lastList > 15000) refreshList(); } if (cap && cap.watching) renderCap(); },
     barTick() { if (rec.active) renderBar(); },
   };
 }

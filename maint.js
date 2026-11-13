@@ -5,7 +5,7 @@ import { Emitter, realClock, base64Decode, concatBytes } from './util.js';
 import {
   phoneClock, respCheck, respNorm, loginErrorKey, validateTank, parseCapacity, validateSiteId, validLatLon, round6, resetPhraseOk, errText, clockInfo,
 } from './core.js';
-import { ProtocolError, DisconnectedError } from './ble.js';
+import { ProtocolError, DisconnectedError, TimeoutError } from './ble.js';
 import { loadFillLog } from './fill.js';
 
 export const IDLE_MS = 15 * 60 * 1000;
@@ -53,6 +53,12 @@ export class Maintenance extends Emitter {
       this.emit('login', this.session);
       return { ok: true, kind: r.kind, grant: this.session.grant, expiresS: r.expires_s };
     } catch (e) {
+      // No answer: the sensor may have accepted the reply code and logged this connection in (it uses the code up, so a second try with the
+      // same reply says "no longer valid"). The same goes for that second try. Ask the sensor whether this connection holds a login.
+      if (e instanceof TimeoutError || (e instanceof ProtocolError && e.code === 'no_challenge')) {
+        const held = await this._adopt();
+        if (held) return held;
+      }
       if (!(e instanceof ProtocolError)) return { ok: false, key: 'errNet', text: errText(e) };
       const out = { ok: false, key: loginErrorKey(e.code), code: e.code };
       if (e.code === 'locked' || e.code === 'wrong') {
@@ -60,6 +66,19 @@ export class Maintenance extends Emitter {
       }
       return out;
     }
+  }
+  // The login this connection already holds on the sensor (maint_state needs one): taken over by the page, or null.
+  async _adopt() {
+    try {
+      const r = await this.client.request('maint_state');
+      const g = r.grant || {}, now = this.clock.now();
+      const hours = Number.isFinite(g.hours) ? g.hours : 1;
+      const left = r.session && Number.isFinite(r.session.expires_s) ? r.session.expires_s : 900;
+      this.session = { kind: 'maintenance', grant: g, hoursAt: now + hours * 3600e3, expAt: now + left * 1000 };
+      this.state = r;
+      this.emit('login', this.session);
+      return { ok: true, kind: 'maintenance', grant: g, expiresS: left };
+    } catch (e) { return null; }
   }
   async logout() {
     if (this.session && this.client.connected) { try { await this.client.request('auth_logout', {}, { timeoutMs: 3000 }); } catch (e) { /* ends with the link anyway */ } }

@@ -26,6 +26,7 @@ export const SLOW_EVERY = 10;         // `slow` and the quiet times of `adaptive
 export const PREROLL = 100;           // frames kept back, to be written when something happens (10 s)
 export const HOT_MS = Object.freeze({ start: 60000, unsure: 30000, motion: 30000, flag: 10000, ref: 60000, resume: 60000, restart: 180000 });
 export const MOTION_MM = 1.5, MOTION_WINDOW_MS = 10000;
+export const REMIND_MM = 3, REMIND_HOLD_MS = 5000;     // the shown level is this far from where it was at the last reading (or at the start), for this long: the page asks for a reading
 
 // What the person at the tank can enter. `value` kinds need a number.
 export const REF_KINDS = Object.freeze([
@@ -39,7 +40,8 @@ export const REF_KINDS = Object.freeze([
 
 // '12,5' and '12.5' are the same; returns {ok, v} or {ok:false, err:'empty'|'number'|'range'}.
 export function parseRefValue(text, kind) {
-  const s = String(text === undefined || text === null ? '' : text).trim().replace(',', '.');
+  let s = String(text === undefined || text === null ? '' : text).trim();
+  s = /^[+-]?[1-9]\d{0,2}(,\d{3})+(\.\d+)?$/.test(s) ? s.replace(/,/g, '') : s.replace(',', '.');       // '1,200' is twelve hundred, '12,5' is twelve and a half
   if (s === '') return { ok: false, err: 'empty' };
   if (!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(s)) return { ok: false, err: 'number' };
   const v = Number(s);
@@ -49,6 +51,32 @@ export function parseRefValue(text, kind) {
 
 // A `status` reply as a `status` line (the reply carries the request's id and ok, and no ev).
 const asStatus = (r) => { const { id, ok, ...rest } = r; return { ev: 'status', ...rest }; };
+
+// Did the sensor start again between two statuses? (the start counters, or the uptime going back)
+export function restartedBetween(before, st) {
+  if (!st || !before) return false;
+  const changed = (k) => st[k] !== undefined && before[k] !== undefined && st[k] !== before[k];
+  return changed('boots') || changed('power_interruptions') || (Number.isFinite(st.uptime_s) && Number.isFinite(before.uptime_s) && st.uptime_s < before.uptime_s);
+}
+
+// The newest `status` line in the stored chunks of a recording, or null.
+function lastStoredStatus(chunks) {
+  for (let i = chunks.length - 1; i >= 0; i--) {
+    const ls = chunks[i].text.split('\n');
+    for (let j = ls.length - 1; j >= 0; j--) {
+      if (!ls[j].startsWith('{"ev":"status"')) continue;
+      try { return JSON.parse(ls[j]); } catch (e) { /* a damaged line: look further back */ }
+    }
+  }
+  return null;
+}
+
+// How many readings (`ref` lines) the stored chunks of a recording hold.
+function storedRefCount(chunks) {
+  let n = 0;
+  for (const c of chunks) for (const l of c.text.split('\n')) if (l.startsWith('{"ev":"ref"')) n++;
+  return n;
+}
 
 const p2 = (n) => String(n).padStart(2, '0');
 // MRM-REC-<MAC>-<yyyymmdd-hhmmss local time>[-p01of03].txt: .txt because Chrome's share sheet only takes a few safe file types.
@@ -74,7 +102,7 @@ export function buildParts(rec, chunks, { maxBytes = PART_BYTES } = {}) {
     const text = head + g.items.map((c) => c.text).join('');
     return {
       name: recFileName({ mac: rec.mac, startedPt: rec.startedPt, tzOffsetMin: rec.tzOffsetMin || 0, part: i + 1, parts: groups.length }),
-      text, bytes: utf8(text).length, lines: g.items.reduce((a, c) => a + c.lines, 0) + 1, frames: g.items.reduce((a, c) => a + c.frames, 0),
+      text, bytes: utf8(head).length + g.bytes, lines: g.items.reduce((a, c) => a + c.lines, 0) + 1, frames: g.items.reduce((a, c) => a + c.frames, 0),
     };
   });
 }
@@ -106,9 +134,14 @@ export class Recorder extends Emitter {
     this.rawMode = 'adaptive';
     this.estimate = null;
     this.refs = [];                // the readings entered in this recording (newest last)
+    this.refCount = 0;             // how many readings this recording holds (also those entered before the page was closed and the recording continued)
+    this._refBase = null;          // the shown level (mm) at the last reading, or at the first estimate: how far it has moved since is what the page reminds of
+    this._farSince = null;         // since when the shown level is REMIND_MM or more away from _refBase
     this.log = [];                 // what the recording page shows: {pt, kind, ...}
     this.debugErrors = 0;
+    this.memoryOnly = false;       // the phone's storage could not be opened: the recording lives in the page only
     this._status = null;
+    this._statusAtLoss = null;     // the last status before the link was lost (events of the new boot overwrite _status meanwhile)
     this._lastSeq = null;
     this._logNext = 0;
     this._busy = { debug: false, logs: false };
@@ -122,9 +155,13 @@ export class Recorder extends Emitter {
   get active() { return this.state === 'recording' || this.state === 'waiting'; }
   get hot() { return this.rawMode === 'all' || (this.rawMode === 'adaptive' && this.clock.now() < this._hotUntil); }
   get elapsedS() { return this.rec ? Math.max(0, Math.round((this.clock.now() - this.rec.startedPt) / 1000)) : 0; }
+  // How far the shown level has moved since the last reading was entered (since the start, if none was), mm; null while not known.
+  get movedSinceRef() { const o = this.estimate && this.estimate.out; return Number.isFinite(o) && this._refBase !== null ? o - this._refBase : null; }
+  // The level has moved and nobody has entered a reading since: the page asks for one (never blocks).
+  get wantsRef() { return this.state === 'recording' && this._farSince !== null && this.clock.now() - this._farSince >= REMIND_HOLD_MS; }
 
   _note(kind, extra = {}) {
-    this.log.push({ pt: this.clock.now(), kind, ...extra });
+    this.log.push({ ...extra, pt: this.clock.now(), kind });                       // (the entry's own keys win over `extra`)
     if (this.log.length > LOG_LIMIT) this.log.splice(0, this.log.length - LOG_LIMIT);
     this.emit('log');
   }
@@ -149,7 +186,7 @@ export class Recorder extends Emitter {
       const t0 = this.clock.now();
       const header = {
         ev: 'rec_start', format: REC_FORMAT, version: REC_VERSION, started_pt: t0, started_iso: new Date(t0).toISOString(),
-        tz_offset_min: this.app.tzOffsetMin || 0, app: { build: this.app.build || '', ua: this.app.ua || '' },
+        tz_offset_min: this.app.tzOffsetMin || 0, app: { build: this.app.build || '', host: this.app.host || '', ua: this.app.ua || '' },
         sensor: { mac: hello.mac || '', name: hello.name || '', fw: hello.fw || '', variant: hello.variant || '', chip: hello.chip || '', caps: hello.caps || [] },
         radar: this.feed.radar || null, status0: status0 ? asStatus(status0) : null, raw_mode: this.rawMode, slow_every: SLOW_EVERY, notes: String(notes || '').slice(0, 1000), pt: t0,
       };
@@ -162,8 +199,11 @@ export class Recorder extends Emitter {
       this._at = { debug: t0, logs: t0, flush: t0, status: t0, link: 0, data: t0 };
       this._timer = this.clock.setInterval(() => this._pump(), 1000);
       this.state = 'recording';
+      this.memoryOnly = this.store.kind === 'memory';
       this._note('started', { mode: this.rawMode });
+      if (this.memoryOnly) this._note('memory_store');
       this._trigger('start', HOT_MS.start);
+      this.emit('started');                              // (who listens can add its own first lines: the capacitive listener's state)
       this.emit('change');
       await this._pollLogs(true).catch(() => {});
       return true;
@@ -184,7 +224,7 @@ export class Recorder extends Emitter {
     if (this._retry !== null) { this.clock.clearTimeout(this._retry); this._retry = null; }
     this._unhook();
     this._note('stopped', { reason });
-    this._write({ ev: 'rec_stop', reason, frames: this.frames, raw_seen: this.rawSeen, lost: this.lost, lines: this.lines + 1 });
+    this._write({ ev: 'rec_stop', reason, frames: this.frames, raw_seen: this.rawSeen, lost: this.lost, refs: this.refCount, lines: this.lines + 1 });
     this.state = 'idle';
     this.emit('change');
     await this._flush();
@@ -200,6 +240,7 @@ export class Recorder extends Emitter {
   async resume() {
     if (this.state !== 'waiting' || this._resuming) return;
     this._resuming = true;
+    const tBegin = this.clock.now();        // (the new boot's frames come after this: the restart is marked at this time)
     try {
       const hello = this.client.hello || {};
       if ((hello.mac || '') !== (this.rec.mac || '')) { this.error = { code: 'other_sensor', text: '' }; await this.stop('other_sensor'); return; }
@@ -213,20 +254,15 @@ export class Recorder extends Emitter {
         return;
       }
       if (!this.client.connected || this.state !== 'waiting') return;
-      const before = this._status;
-      const changed = (k) => st && before && st[k] !== undefined && before[k] !== undefined && st[k] !== before[k];
-      const restarted = !!(st && before && (changed('boots') || changed('power_interruptions') || (Number.isFinite(st.uptime_s) && Number.isFinite(before.uptime_s) && st.uptime_s < before.uptime_s)));
-      this._write({ ev: 'rec_event', what: 'link_resumed', restarted });
+      const before = this._statusAtLoss || this._status;
+      if (!st && this._status !== before) st = this._status;               // (the request failed, but a status event of the new boot came)
+      const restarted = restartedBetween(before, st);
+      this._write({ ev: 'rec_event', what: 'link_resumed', restarted, pt: tBegin });
       this._write({ ev: 'hello', ...hello });
       if (st) { this._status = st; this._write(asStatus(st)); }
       this._note('link_resumed', { restarted });
-      if (restarted) {
-        this._logNext = 0;
-        this._lastSeq = null;
-        this._outHist = [];
-        this._write({ ev: 'rec_event', what: 'sensor_restarted' });
-        this._note('restarted');
-      }
+      this._statusAtLoss = null;
+      if (restarted) this._markRestarted(tBegin);
       const now = this.clock.now();
       this._at = { debug: now, logs: now, flush: now, status: now, link: 0, data: now };
       this._clearTimer();
@@ -236,6 +272,14 @@ export class Recorder extends Emitter {
       this.emit('change');
       await this._pollLogs(restarted).catch(() => {});
     } finally { this._resuming = false; }
+  }
+  // The sensor started again: its log numbers and frame numbers start from the beginning. `pt`: when the new power-up began to send.
+  _markRestarted(pt) {
+    this._logNext = 0;
+    this._lastSeq = null;
+    this._outHist = [];
+    this._write({ ev: 'rec_event', what: 'sensor_restarted', pt });
+    this._note('restarted');
   }
   _retryResume(e) {
     this._note('resume_retry', { code: (e && e.code) || '' });
@@ -265,21 +309,26 @@ export class Recorder extends Emitter {
       const status0 = await this.client.request('status').catch(() => null);
       const chunks = await this.store.chunks(id);
       this._chunk.n = chunks.length ? Math.max(...chunks.map((c) => c.n)) + 1 : 0;
+      this.refCount = storedRefCount(chunks);
       this.lines = rec.lines || 0;
       this.frames = rec.frames || 0;
       this.bytes = rec.bytes || 0;
       this._status = status0;
       this.rec = await this.store.update(id, { state: 'recording', endedPt: null });
+      this.memoryOnly = this.store.kind === 'memory';
+      if (this.memoryOnly) this._note('memory_store');
       this._hook();
       const t0 = this.clock.now();
       this._at = { debug: t0, logs: t0, flush: t0, status: t0, link: 0, data: t0 };
       this._write({ ev: 'rec_event', what: 'app_resumed' });
       this._write({ ev: 'hello', ...hello });
       if (status0) this._write(asStatus(status0));
+      if (restartedBetween(lastStoredStatus(chunks) || (rec.header && rec.header.status0), status0)) this._markRestarted(t0);
       this._timer = this.clock.setInterval(() => this._pump(), 1000);
       this.state = 'recording';
       this._note('app_resumed');
       this._trigger('restart', HOT_MS.restart);
+      this.emit('started');
       this.emit('change');
       await this._pollLogs(true).catch(() => {});
       return true;
@@ -306,16 +355,21 @@ export class Recorder extends Emitter {
       if (!p.ok) return p;
       value = p.v;
     } else if (!note) return { ok: false, err: 'empty' };
-    const st = this._status || {}, est = this.estimate;
+    const live = this.state === 'recording';             // (while the link is down there is nothing the sensor shows: the last status would be old)
+    const st = (live && this._status) || {}, est = live ? this.estimate : null;
     const line = {
       ev: 'ref', kind: kindId, value, unit: kind.unit, text: note,
       shown_level_mm: Number.isFinite(st.level_mm) ? st.level_mm : null, shown_litres: Number.isFinite(st.litres) ? st.litres : null,
       shown_pct: Number.isFinite(st.fill_pct) ? st.fill_pct : null, est_h: est && Number.isFinite(est.h) ? est.h : null,
     };
     this._write(line);
+    this._flush();                                         // (the reading is the one thing nobody can type again: to the phone's storage at once, also while the link is down and no timer runs)
     const r = { pt: line.pt, kind: kindId, value, unit: kind.unit, text: note };
     this.refs.push(r);
     if (this.refs.length > REF_LIMIT) this.refs.shift();
+    this.refCount++;
+    this._refBase = est && Number.isFinite(est.out) ? est.out : null;      // (not known while the link is down: the next estimate is the new base)
+    this._farSince = null;
     this._note('ref', { refKind: kindId, value, unit: kind.unit, text: note });          // (not `kind`: that is the log entry's own)
     this._trigger('ref', HOT_MS.ref);
     this.emit('change');
@@ -359,6 +413,15 @@ export class Recorder extends Emitter {
   writeExternal(obj) {
     if (!this.active || !obj || typeof obj.ev !== 'string') return false;
     this._write({ ...obj });
+    return true;
+  }
+
+  // Something that happened beside the sensor's own stream (the capacitive listener: started, stopped, could not start): a `rec_event`
+  // line in the file and a line in the recording log on the screen. Refused while no recording runs.
+  event(what, fields = {}) {
+    if (!this.active || typeof what !== 'string' || !what) return false;
+    this._write({ ...fields, ev: 'rec_event', what, pt: this.clock.now() });         // (a field cannot change the kind, the name or the time of the line)
+    this._note('event', { ...fields, what });
     return true;
   }
 
@@ -425,6 +488,8 @@ export class Recorder extends Emitter {
     if (state !== 'confirmed' || (Array.isArray(e.flags) && e.flags.length) || (e.src && e.src !== 'estimate')) this._trigger('unsure', HOT_MS.unsure);
     if (out !== null) {                                   // the level is moving (a pour, a drain): the waveforms matter
       const now = this.clock.now();
+      if (this._refBase === null) this._refBase = out;
+      if (Math.abs(out - this._refBase) < REMIND_MM) this._farSince = null; else if (this._farSince === null) this._farSince = now;
       this._outHist.push({ pt: now, out });
       while (this._outHist.length && now - this._outHist[0].pt > MOTION_WINDOW_MS) this._outHist.shift();
       if (this._outHist.length > 1 && Math.abs(out - this._outHist[0].out) > MOTION_MM) this._trigger('motion', HOT_MS.motion);
@@ -442,6 +507,7 @@ export class Recorder extends Emitter {
     if (this.state !== 'recording') return;
     this._clearTimer();
     this.state = 'waiting';
+    this._statusAtLoss = this._status;
     this._write({ ev: 'rec_event', what: 'link_lost' });
     this._note('link_lost');
     this._flush();
@@ -464,6 +530,7 @@ export class Recorder extends Emitter {
       for (let page = 0; page < 60; page++) {
         const r = await this.client.request('logs', { since: this._logNext, debug: true });
         if (this.state !== 'recording') return;
+        if (Number.isFinite(r.next) && r.next < this._logNext) { this._markRestarted(this.clock.now()); this._trigger('restart', HOT_MS.restart); continue; }   // (the log numbers went back: the sensor restarted without us noticing)
         if (page === 0 && backlog && r.lost) this._write({ ev: 'rec_event', what: 'log_lost', n: r.lost });
         for (const l of r.lines || []) {
           this._write(backlog ? { ev: 'log', s: l.s, t: l.t, l: l.l, m: l.m, backlog: true } : { ev: 'log', s: l.s, t: l.t, l: l.l, m: l.m });

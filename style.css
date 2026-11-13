@@ -163,6 +163,8 @@ input[type=text],input:not([type]),input[inputmode]{min-height:52px;font-size:20
 /* Sensor visualization (debug builds) */
 .vzdock{position:sticky;top:0;z-index:4;background:var(--bg);padding:2px 0 4px;margin:0 -2px;border-bottom:1px solid var(--line)}
 .vzdock .vzline{margin:2px 0;min-height:1.2em}
+/* A wide and short window (a laptop, a phone held sideways): the pinned plot would take most of the height, and the recording card (the capacitive button, the notes, Start) would slide under it. There the plot scrolls with the page. */
+@media (min-width:700px) and (max-height:900px){.vzdock{position:static}}
 .vzbox{margin:6px 0 4px}
 .vzcanvas{display:block;width:100%;height:190px;background:var(--card);border:1px solid var(--line);border-radius:6px;touch-action:pan-y;-webkit-user-select:none;user-select:none}
 .vzline{margin:4px 0;min-height:1.3em}
@@ -175,6 +177,11 @@ h3{font-size:16px;margin:14px 0 6px}
 .recinfo{font-weight:700;margin:6px 0;font-variant-numeric:tabular-nums}
 .reclog{max-height:260px;overflow:auto;font-size:15px}
 .reclog li{display:flex;gap:10px}
+.capguide ol{margin:6px 0 8px;padding-left:1.4em}
+.capguide li{margin:0 0 8px;font-weight:400}
+.capguide p{margin:0 0 6px}
+.capguide code{display:block;margin:6px 0;padding:6px 8px;background:var(--card);border:1px solid var(--line);border-radius:4px;overflow-wrap:anywhere;font-weight:600;user-select:all}
+.capguide .btn{min-height:44px;font-size:16px;margin:4px 0}
 .reclog time{color:var(--mut);font-variant-numeric:tabular-nums;flex:none}
 .reclog .bad{color:var(--bad);font-weight:650}
 .reclog .ref{font-weight:650}

@@ -646,7 +646,8 @@ export class FakeSensor {
     const first = this._logs.length ? this._logs[0].s : this._logSeq;
     const lost = Math.max(0, first - since);
     const lines = [];
-    let size = 150, next = Math.max(since, first);
+    const newest = this._logSeq;                                   // (like the firmware: a reader from before a restart starts at what is held)
+    let size = 150, next = Math.min(Math.max(since, first), newest);
     for (const l of this._logs) {
       if (l.s < since) continue;
       if (l.l === 'D' && !showDebug) { next = l.s + 1; continue; }

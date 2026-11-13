@@ -57,7 +57,7 @@ export async function deliverTextFiles(files, env = {}) {
   const nav = env.navigator === undefined ? globalThis.navigator : env.navigator;
   const wait = env.wait || ((ms) => new Promise((r) => setTimeout(r, ms)));
   const made = files.map((f) => (typeof File === 'function' ? new File([f.text], f.name, { type: REC_MIME }) : new Blob([f.text], { type: REC_MIME })));
-  if (nav && typeof nav.canShare === 'function' && typeof nav.share === 'function' && typeof File === 'function') {
+  if (!env.downloadOnly && nav && typeof nav.canShare === 'function' && typeof nav.share === 'function' && typeof File === 'function') {     // (downloadOnly: the Download button never opens the share sheet)
     let can = false;
     try { can = !!nav.canShare({ files: made }); } catch (e) { can = false; }
     if (can) {

@@ -15,6 +15,9 @@ export function initFill(ctx) {
     $('cFill').hidden = !v.enabled || !v.known;
     const st = STAGES.includes(v.stage) ? v.stage : 'idle';
     for (const id of STAGES) $('fr_' + id).hidden = id !== st;
+    // The litres box is for the report that is ready. A fill that ended without a confirm from this page (the sensor closed it, another phone
+    // confirmed it, the reply was lost) or another sensor must not leave its number in the box for the next report.
+    if (st !== 'ready' && $('frL').value !== '') { $('frL').value = ''; $('frL').setAttribute('aria-invalid', 'false'); }
     const open = st === 'filling' || st === 'measuring' || st === 'ready';
     if (st === 'filling') $('frFillT').textContent = t('frFilling', { t: v.phoneStart > 0 ? fmtClock(v.phoneStart * 1000, ctx.clock.now()) : '?' });
     if (st === 'nolocation') $('frNoLoc').textContent = t('frNoLoc', { why: STR['loc_' + v.locWhy] || STR.loc_unavailable });

@@ -150,8 +150,9 @@ export function initRescal(ctx) {
     renderRows();
     if (ti < RESCAL_TEST_POINTS.length - 1) { await goTest(ti + 1); return; }
     lock(true);
-    await maint.rescalCancel();                                      // the output goes back to the fuel level
+    const c = await maint.rescalCancel();                            // the output goes back to the fuel level
     lock(false);
+    if (!c.ok && !c.ended) { msg('resErr', t('resFail', { e: c.text }), 'bad'); return; }   // no answer: the output may still be on the last test value; Next tries again
     running = false;
     $('resBox').hidden = true;
     $('resDoneMsg').textContent = STR.resTestDone;

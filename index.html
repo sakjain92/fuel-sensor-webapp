@@ -459,22 +459,36 @@
       <label class="chk"><input id="recCapAll" type="checkbox"><span data-t="recCapAll"></span></label>
       <p id="recCapInfo" class="hint" hidden></p>
       <p id="recCapMsg" class="msg" hidden></p>
+      <div id="recCapGuide" class="msg warn capguide" hidden>
+        <p id="recCapGuideHead"></p>
+        <ol id="recCapSteps">
+          <li><span data-t="recCapG1"></span> <code id="recCapFlag"></code>
+            <button id="bRecCapCopy" class="btn" type="button" data-t="recCapCopy"></button><span id="recCapCopyMsg" class="hint" hidden></span></li>
+          <li data-t="recCapG2"></li>
+          <li data-t="recCapG3"></li>
+          <li data-t="recCapG4"></li>
+        </ol>
+        <p id="recCapGuideNote" data-t="recCapG5"></p>
+      </div>
     </div>
     <div id="recSetup">
       <p class="hint" data-t="recIntro"></p>
       <input id="recNotes" type="text" maxlength="300" autocomplete="off" data-tp="recNotesPh">
       <label class="vzlab" for="recMode" data-t="recModeLabel"></label>
       <select id="recMode"></select>
+      <p id="recStartMsg" class="msg warn" hidden></p>
       <button id="bRecStart" class="btn pri mt" type="button" data-t="recStart"></button>
     </div>
     <div id="recLive" hidden>
       <p id="recInfo" class="recinfo"></p>
       <p id="recWait" class="msg warn" hidden data-t="recWaiting"></p>
+      <p id="recRemind" class="msg warn" hidden></p>
       <h3 data-t="recAddTitle"></h3>
       <select id="recKind" aria-label="Reading"></select>
       <div class="row2"><input id="recVal" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="done" data-tp="recValuePh"><input id="recText" type="text" maxlength="200" autocomplete="off" enterkeyhint="done" data-tp="recTextPh"></div>
       <button id="bRecAdd" class="btn pri" type="button" data-t="recAdd"></button>
       <p id="recAddMsg" class="msg" hidden></p>
+      <p id="recStopMsg" class="msg warn" hidden></p>
       <button id="bRecStop" class="btn mt" type="button" data-t="recStop"></button>
     </div>
     <p id="recErr" class="msg bad" hidden></p>

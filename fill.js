@@ -24,6 +24,7 @@ export class FillFlow extends Emitter {
     this.local = null;              // locating | nolocation | starting: steps before the device knows about the report
     this.busy = false;
     this.fix = null;                // the Start fix {lat, lon, acc}
+    this._pending = null;           // the fix sent with a Start that got no answer: {fix, t} (the sensor may have started the report)
     this.maxD = 0;                  // largest distance from the Start fix, metres (float)
     this.locWhy = '';
     this.message = null;            // {kind: 'bad' | 'ok' | 'warn', text}
@@ -40,7 +41,7 @@ export class FillFlow extends Emitter {
   forSensor(mac) {
     if (this.mac && mac && this.mac !== mac) {
       if (this._stopWatch) { this._stopWatch(); this._stopWatch = null; }
-      this.fix = null; this.maxD = 0;
+      this.fix = null; this.maxD = 0; this._pending = null;
       this.fs = null; this.fsAt = 0; this.stage = 'unknown'; this.local = null; this.busy = false; this.locWhy = ''; this.message = null;
       this.lastReport = null;
       this._token++;
@@ -92,10 +93,11 @@ export class FillFlow extends Emitter {
     const open = fs.enabled !== false && fs.stage !== 'idle';
     if (open) {
       this.local = null;
-      if (!this.fix) this._resume(fs.phone_start);
+      if (!this.fix && !this._adoptPending(fs.phone_start)) this._resume(fs.phone_start);
       this.stage = fs.stage;
       this._ensureWatch();
     } else if (!this.local) {
+      this._pending = null;
       if (this.fix || this._stopWatch) this._clearTracking();       // closed by the sensor, or confirmed elsewhere
       this.stage = 'idle';
     }
@@ -110,6 +112,17 @@ export class FillFlow extends Emitter {
     const cur = this.lastReport;
     if (next === null ? cur === null : (cur && cur.serial === next.serial && cur.code === next.code)) return;       // unchanged: keep the object
     this.lastReport = next;
+  }
+
+  // A Start that got no answer: if the sensor did start the report (its phone_start is the t we sent) the position sent with it is the Start fix.
+  _adoptPending(phoneStart) {
+    const p = this._pending;
+    this._pending = null;
+    if (!p || p.t !== phoneStart) return false;
+    this.fix = p.fix;
+    this.maxD = 0;
+    this._persist(phoneStart);
+    return true;
   }
 
   // ---- operator steps
@@ -143,9 +156,11 @@ export class FillFlow extends Emitter {
     this.busy = true;
     this._emit();
     const c = phoneClock(this.clock.now(), this.tzOffsetMin());
+    this._pending = fix ? { fix: { ...fix }, t: c.t } : null;
     try {
       const fs = await this.client.request('fill_start', { t: c.t, tz_min: c.tz_min, lat: fix ? fix.lat : undefined, lon: fix ? fix.lon : undefined }, { timeoutMs: 15000 });
       this.local = null;
+      this._pending = null;
       this.fix = fix ? { ...fix } : null;
       this.maxD = 0;
       this._persist(fs.phone_start === undefined ? c.t : fs.phone_start);
@@ -153,7 +168,8 @@ export class FillFlow extends Emitter {
     } catch (e) {
       this.local = null;
       this._say('bad', fillErrText(e));
-      if (e instanceof ProtocolError && e.code === 'busy') await this.refresh();
+      if (e instanceof ProtocolError) this._pending = null;           // refused: nothing was started
+      if (!(e instanceof ProtocolError) || e.code === 'busy') await this.refresh();       // no answer: ask at once whether the sensor started the report
     } finally {
       this.busy = false;
       this._schedule();
@@ -179,6 +195,7 @@ export class FillFlow extends Emitter {
     this.busy = true;
     this._say('', '');
     this._emit();
+    const before = this.lastReport ? this.lastReport.serial : null;
     try {
       const r = await this.client.request('fill_confirm', { litres: p.v, moved_m: this.fix ? Math.round(this.maxD) : undefined }, { timeoutMs: 15000 });
       this._clearTracking();
@@ -189,8 +206,17 @@ export class FillFlow extends Emitter {
       this.emit('report', r.report);
       return { ok: true, report: r.report };
     } catch (e) {
+      await this.refresh();
+      // No answer: the sensor may have signed the report. Its newest report is new and carries these litres: it did, and this is the report.
+      const r = this.lastReport;
+      if (!(e instanceof ProtocolError) && r && r.serial !== before && Number.isFinite(r.operator_l) && Math.abs(r.operator_l - p.v) < 0.005) {
+        this._clearTracking();
+        this.stage = 'idle';
+        this._say('ok', t('frDoneMsg', { n: r.serial }));
+        this.emit('report', r);
+        return { ok: true, report: r };
+      }
       this._say('bad', fillErrText(e));
-      if (e instanceof ProtocolError) await this.refresh();
       return { ok: false, reason: 'device', error: e };
     } finally { this.busy = false; this._schedule(); this._emit(); }
   }

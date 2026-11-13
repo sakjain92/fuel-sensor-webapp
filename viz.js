@@ -75,6 +75,7 @@ export class SensorViz extends Emitter {
     Object.assign(this, { client, clock });
     this.feed = feed || new RawFeed({ client });         // shared with the recorder when the app passes its own
     this._held = false;                                   // we hold a share of the raw stream
+    this._gen = 0;                                        // counts start() and stop(): a start that was stopped meanwhile must not take a share
     this.state = 'idle';            // idle | starting | running | error
     this.error = null;              // {code, text} after a failed start
     this.paused = false;
@@ -109,17 +110,18 @@ export class SensorViz extends Emitter {
     this._reset();
     this.error = null;
     this.state = 'starting';
+    const gen = ++this._gen;
     this.emit('change');
     this._offs = [this.client.on('raw', (e) => this._raw(e)), this.client.on('estimate', (e) => this._estimate(e)),
       this.client.on('disconnected', () => this._ended())];
     try {
       const radar = await this.feed.acquire();
+      if (gen !== this._gen || this.state !== 'starting') { await this.feed.release(); return; }     // stopped (and perhaps started again) while the sensor was answering: that start's share goes back
       this._held = true;
-      if (this.state !== 'starting') { this._held = false; await this.feed.release(); return; }     // stopped while the sensor was answering
       this.axis = vizAxis(radar);
       this.state = 'running';
     } catch (e) {
-      if (this.state !== 'starting') return;
+      if (gen !== this._gen || this.state !== 'starting') return;
       this._unhook();
       this.state = 'error';
       this.error = e instanceof ProtocolError ? { code: e.code, text: e.msg || e.code } : { code: 'error', text: (e && e.message) || 'error' };
@@ -127,13 +129,14 @@ export class SensorViz extends Emitter {
     this.emit('change');
   }
   async stop() {
-    const was = this.state;
+    this._gen++;
     this._unhook();
     this.state = 'idle';
     this.emit('change');
     if (this._held) { this._held = false; await this.feed.release(); }
   }
   _ended() {
+    this._gen++;
     this._unhook();
     if (this._held) { this._held = false; this.feed.release(); }
     if (this.state === 'running' || this.state === 'starting') { this.state = 'idle'; this.emit('change'); }

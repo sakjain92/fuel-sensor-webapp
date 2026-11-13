@@ -15,6 +15,7 @@ export function initMaint(ctx) {
   let probeAt = 0;
   let clk = null;                       // the sensor clock as last read: {set, utc, src, rtc, diffS}
   let resSaved = null;                  // resistive output calibration: values in the sensor's memory (null: not read)
+  let formFor = null;                   // the sensor the typed-in (unsaved) values are for
 
   function renderSess() {
     const left = maint.sessionLeftMs();
@@ -318,8 +319,11 @@ export function initMaint(ctx) {
 
   return {
     enter() {
+      const mac = (ctx.client.hello && ctx.client.hello.mac) || '';
+      if (mac !== formFor) { formFor = mac; tankDirty = capDirty = emuDirty = false; }      // values typed for another sensor are not offered for this one
       for (const id of ['mErr', 'capMsg', 'capErr', 'tankMsg', 'siteMsg', 'siteErr', 'locMsg', 'crashMsg', 'rsMsg', 'rstMsg', 'fillsAllMsg', 'clkErr', 'clkMsg', 'clkConf', 'resMsg', 'resConf', 'emuMsg']) $(id).hidden = true;
       resSaved = null;
+      renderRes();                                                 // (not the calibration state of the sensor visited before, while this one is asked)
       fix = null;
       clk = null;                                                  // never show the clock of the sensor visited before
       $('siteIn').value = (app.status && app.status.site_id) || '';

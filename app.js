@@ -20,6 +20,7 @@ import { initRegs } from './ui/regs.js';
 import { initLogs } from './ui/logs.js';
 import { initViz } from './ui/viz.js';
 import { Recorder } from './recorder.js';
+import { BUILD } from './build.js';
 import { RawFeed } from './rawfeed.js';
 import { LazyRecStore } from './recstore.js';
 import { initWait } from './ui/wait.js';
@@ -71,7 +72,7 @@ async function main() {
   const fill = new FillFlow({ client, geo, storage: makeStorage(), clock, mac: q.sensor ? q.sensor.mac : '' });
   const link = new LinkControl({ client, clock });
   const feed = new RawFeed({ client });                          // the raw radar stream, shared by the live plot and the recorder
-  const recorder = new Recorder({ client, feed, store: new LazyRecStore(), clock, app: { build: location.host, ua: navigator.userAgent, tzOffsetMin: new Date().getTimezoneOffset() } });
+  const recorder = new Recorder({ client, feed, store: new LazyRecStore(), clock, app: { build: BUILD, host: location.host, ua: navigator.userAgent, tzOffsetMin: new Date().getTimezoneOffset() } });
 
   // ---- navigation
   const nav = {
@@ -158,7 +159,7 @@ async function main() {
   const ctx = {
     $, client, app, bus, clock, maint, fill, link, geo, nav, recorder, feed, mode: q.demo ? 'demo' : 'ble', sensor: q.sensor,
     // the capacitive sensor's Bluetooth broadcast (capble.js)
-    adv: { supported: !!navigator.bluetooth, choose: (o) => requestAdvertiser(navigator.bluetooth, o) },
+    adv: { supported: !!navigator.bluetooth, canWatch: typeof BluetoothDevice === 'undefined' ? null : 'watchAdvertisements' in BluetoothDevice.prototype, choose: (o) => requestAdvertiser(navigator.bluetooth, o) },
     demoCode: demoKit ? demoKit.loginCode : '', variant: '',
     pace: q.demo === 'fast' ? { firstTryMs: 1500, retryMs: 500, dropWaitMs: 8000, giveUpMs: 6500 } : { firstTryMs: 5000, retryMs: 3000 },
     onConnected,

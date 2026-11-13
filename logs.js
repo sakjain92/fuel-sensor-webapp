@@ -13,6 +13,7 @@ export class LogView extends Emitter {
     this.loading = false;
     this.error = null;
     this._off = null;
+    this._offConnected = null;
     this._on = false;
     this._seq = 0;                  // next sequence number to ask for
   }
@@ -22,6 +23,9 @@ export class LogView extends Emitter {
     if (this._on) return;
     this._on = true;
     this._off = this.client.on('log', (e) => this._live(e));
+    // After a reconnect (the link dropped, or the sensor restarted) read what the sensor holds again: the lines of a new run - the start-up
+    // lines are the ones that tell why it restarted - were logged before the phone was back, and a restarted sensor numbers them from 0 again.
+    this._offConnected = this.client.on('connected', () => { if (this._on) this._backlog(0, { keepLost: true }); });
     await this.client.subscribe(['log']).catch((e) => { this.error = e; });
     await this._backlog(0);
   }
@@ -30,10 +34,18 @@ export class LogView extends Emitter {
     this._on = false;
     if (this._off) this._off();
     this._off = null;
+    if (this._offConnected) this._offConnected();
+    this._offConnected = null;
     await this.client.unsubscribe(['log']).catch(() => {});
   }
   _add(l) {
-    if (!l || !Number.isFinite(l.s) || this.lines.some((x) => x.s === l.s)) return;
+    if (!l || !Number.isFinite(l.s)) return;
+    const same = this.lines.find((x) => x.s === l.s);
+    if (same) {
+      if (same.t === l.t && same.m === l.m) return;            // the same line twice (live and from the backlog)
+      this.lines = [];                                          // another line under a known number: the sensor restarted and numbers its lines from 0 again
+      this._seq = 0;
+    }
     this.lines.push({ s: l.s, t: l.t, l: l.l, m: l.m });
     this.lines.sort((a, b) => a.s - b.s);
     if (this.lines.length > this.max) this.lines.splice(0, this.lines.length - this.max);
@@ -45,14 +57,14 @@ export class LogView extends Emitter {
     this.emit('change');
   }
   // Page through `logs` from `since` until the sensor has nothing more.
-  async _backlog(since) {
+  async _backlog(since, { keepLost = false } = {}) {
     this.loading = true;
     this.emit('change');
     try {
       let next = since;
       for (let page = 0; page < 200; page++) {
         const r = await this.client.request('logs', { since: next, debug: this.includeDebug ? true : undefined });
-        if (since === 0 && page === 0) this.lost = r.lost || 0;
+        if (since === 0 && page === 0 && !keepLost) this.lost = r.lost || 0;
         for (const l of r.lines || []) this._add(l);
         if (!r.lines || !r.lines.length || !(r.next > next)) break;
         next = r.next;

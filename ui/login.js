@@ -8,6 +8,7 @@ export function initLogin(ctx) {
   let lockUntil = 0;
   let warnFor = null;
   let entryMsg = '';
+  let respFor = null;       // the sensor the pasted reply was meant for
 
   function renderCode(c) {
     const el = $('code');
@@ -122,6 +123,7 @@ export function initLogin(ctx) {
 
   return {
     enter() {
+      if (respFor !== mac()) { respFor = mac(); $('resp').value = ''; warnFor = null; }        // IT's reply is for one sensor's code only: a wrong one would count as a failed try
       msg('lgMsg', entryMsg, 'bad');
       entryMsg = '';
       $('lgErr').hidden = true;

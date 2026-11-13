@@ -523,6 +523,11 @@ export class WebBluetoothTransport {
 
 // A device whose Bluetooth advertisements are listened to, with no connection: the capacitive sensor next to the radar sensor (capble.js).
 // `all` lists every device in the browser's chooser, else only names starting with TD or Escort. Call it straight from a tap.
+// The company id in the Escort capacitive sensor's broadcasts (seen on TW_133978, 13 Nov 2026). Chrome hands a page the manufacturer
+// data of a broadcast only for the company ids asked for here (optionalManufacturerData): without it the readings would be hidden
+// and only the name and the signal strength would arrive.
+export const ESCORT_COMPANY = 0x0f16;
 export function requestAdvertiser(bluetooth, { all = false } = {}) {
-  return bluetooth.requestDevice(all ? { acceptAllDevices: true } : { filters: [{ namePrefix: 'TD' }, { namePrefix: 'Escort' }] });
+  const want = { optionalManufacturerData: [ESCORT_COMPANY] };
+  return bluetooth.requestDevice(all ? { acceptAllDevices: true, ...want } : { filters: [{ namePrefix: 'TD' }, { namePrefix: 'TW' }, { namePrefix: 'Escort' }], ...want });
 }

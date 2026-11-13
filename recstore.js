@@ -69,8 +69,9 @@ export async function openRecStore(env = {}) {
 
 // Opens the store on first use. A production sensor never reaches the Recording page, so for those users the database is never created.
 export class LazyRecStore {
-  constructor(open = openRecStore) { this._open = open; this._p = null; this.kind = 'lazy'; }
-  _s() { if (!this._p) this._p = Promise.resolve().then(() => this._open()); return this._p; }
+  constructor(open = openRecStore) { this._open = open; this._p = null; this._real = null; }
+  _s() { if (!this._p) this._p = Promise.resolve().then(() => this._open()).then((s) => { this._real = s; return s; }); return this._p; }
+  get kind() { return this._real ? this._real.kind : 'lazy'; }       // 'indexeddb' or 'memory' once opened
   get opened() { return this._p !== null; }
   async create(rec) { return (await this._s()).create(rec); }
   async update(id, patch) { return (await this._s()).update(id, patch); }
