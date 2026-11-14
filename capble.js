@@ -81,12 +81,39 @@ export class CapAdvLogger extends Emitter {
     this.device = device;
     this.name = device.name || '';
     this.packets = 0;
+    this.restarts = 0;
     this.last = null;
+    this.lastAt = this.clock.now();
     this.state = 'watching';
+    this._startWatchdog();
     this.emit('change');
     return true;
   }
+  // Chrome / Edge on Windows stop delivering the broadcasts after a minute or two while watchAdvertisements() still counts as on (14 Nov 2026
+  // recording: 13 packets in the first 126 s, then none for 15 min; 13 Nov: 0 packets in 57 min). When nothing came for STALL_MS the watch is
+  // stopped and started again on the same device (no chooser needed); `restart` is emitted so the recording shows it.
+  _startWatchdog() {
+    this._stopWatchdog();
+    this._wd = this.clock.setInterval(() => this._check(), CapAdvLogger.CHECK_MS);
+  }
+  _stopWatchdog() { if (this._wd) { this.clock.clearInterval(this._wd); this._wd = null; } }
+  async _check() {
+    const d = this.device;
+    if (!d || this._busy || this.clock.now() - this.lastAt < CapAdvLogger.STALL_MS) return;
+    this._busy = true;
+    const quietS = Math.round((this.clock.now() - this.lastAt) / 1000);
+    try { if (typeof d.unwatchAdvertisements === 'function') d.unwatchAdvertisements(); } catch (e) { /* already stopped */ }
+    let ok = true, text = '';
+    try { await d.watchAdvertisements(); } catch (e) { ok = false; text = (e && e.message) || 'error'; }
+    this._busy = false;
+    if (this.device !== d) return;                               // stopped meanwhile
+    this.restarts++;
+    this.lastAt = this.clock.now();                              // the next try comes STALL_MS later
+    this.emit('restart', { n: this.restarts, quiet_s: quietS, ok, error: text });
+    this.emit('change');
+  }
   stop() {
+    this._stopWatchdog();
     const d = this.device;
     this.device = null;
     if (d) {
@@ -104,6 +131,8 @@ export class CapAdvLogger extends Emitter {
   }
   get agoS() { return this.last ? Math.max(0, Math.round((this.clock.now() - this.lastAt) / 1000)) : null; }
   get escort() { return (this.last && this.last.escort) || null; }
+  static STALL_MS = 20000;   // the Escort sends every 3 s: 20 s with nothing = the browser stopped delivering
+  static CHECK_MS = 5000;
   get hex() {
     const l = this.last;
     if (!l) return '';

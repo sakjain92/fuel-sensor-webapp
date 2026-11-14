@@ -36,6 +36,7 @@ export function logView(e) {
       if (e.what === 'cap_state') return e.watching ? { text: t('recLogEv_cap_on', { name: e.name || '?' }) } : { text: STR.recLogEv_cap_off, cls: 'ref' };
       if (e.what === 'cap_start') return { text: t('recLogEv_cap_start', { name: e.name || '?' }) };
       if (e.what === 'cap_stop') return { text: t('recLogEv_cap_stop', { n: e.packets || 0 }) };
+      if (e.what === 'cap_restart') return { text: t('recLogEv_cap_restart', { s: e.quiet_s || 0 }), cls: e.ok === false ? 'bad' : '' };
       if (e.what === 'cap_failed') return { text: t('recLogEv_cap_failed', { why: STR['recCapWhy_' + e.code] || e.text || e.code || '?' }), cls: 'bad' };
       return { text: e.what };
     case 'data': {
@@ -52,14 +53,15 @@ export function initRecord(ctx) {
   const armed = new Map();                                 // delete buttons waiting for their second tap
 
   // ---- selects
-  for (const k of REF_KINDS) $('recKind').add(new Option(STR[k.key], k.id));
+  // The dropdown holds the readings with a value; a free-text note has its own row above (Add a note), so there is one way to add one.
+  const READING_KINDS = REF_KINDS.filter((k) => k.value);
+  for (const k of READING_KINDS) $('recKind').add(new Option(STR[k.key], k.id));
   for (const m of RAW_MODES) $('recMode').add(new Option(STR['recMode_' + m], m));
-  const kind = () => REF_KINDS.find((k) => k.id === $('recKind').value) || REF_KINDS[0];
+  $('recMode').value = 'all';                                 // (user 14 Nov 2026: full-rate radar data always; replays need every frame)
+  const kind = () => READING_KINDS.find((k) => k.id === $('recKind').value) || READING_KINDS[0];
   function kindChanged() {
     const k = kind();
-    $('recVal').hidden = !k.value;
     $('recVal').placeholder = k.unit ? `${STR.recValuePh} (${k.unit})` : STR.recValuePh;
-    $('recText').placeholder = k.value ? STR.recTextPh : STR.recTextPhNote;
     msg('recAddMsg', '', '');
   }
   $('recKind').addEventListener('change', kindChanged);
@@ -117,7 +119,7 @@ export function initRecord(ctx) {
     $('recLive').hidden = !rec.active;
     $('recWait').hidden = rec.state !== 'waiting';
     if (rec.active) $('recInfo').textContent = info();
-    if (!rec.active) { clearTimeout(stopArmed); stopArmed = null; $('bRecStop').textContent = STR.recStop; msg('recStopMsg', '', ''); }
+    if (!rec.active) { clearTimeout(stopArmed); stopArmed = null; $('bRecStop').textContent = STR.recStop; msg('recStopMsg', '', ''); msg('recNoteMsg', '', ''); }
     renderRemind();
     renderError();
     renderLog();
@@ -192,6 +194,20 @@ export function initRecord(ctx) {
   $('bRecAdd').addEventListener('click', addReading);
   for (const id of ['recVal', 'recText']) $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addReading(); } });
   $('recVal').addEventListener('input', () => msg('recAddMsg', '', ''));
+  // A free-text note: the same thing the recorder writes for a reading of kind `note` (a `ref` line), at any time while the recording
+  // is active, also while the link is lost and the recording waits.
+  function addNote() {
+    const r = rec.addRef('note', '', $('recNote').value);
+    if (!r.ok) { msg('recNoteMsg', r.err === 'empty' ? STR.recNoteEmpty : STR['recErr_' + r.err] || STR.recErr_kind, 'bad'); return; }
+    $('recNote').value = '';
+    msg('recNoteMsg', STR.recNoteAdded, 'ok');
+    msg('recStopMsg', '', '');
+    renderRemind();
+    $('recNote').focus();
+  }
+  $('bRecNote').addEventListener('click', addNote);
+  $('recNote').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addNote(); } });
+  $('recNote').addEventListener('input', () => msg('recNoteMsg', '', ''));
 
   // ---- the capacitive sensor's Bluetooth broadcast, listened to at the same time (capble.js)
   let cap = null;
@@ -232,7 +248,7 @@ export function initRecord(ctx) {
     renderCapGuide(!!(e && e.code === 'unsupported'));
   }
   $('bRecCap').addEventListener('click', async () => {
-    if (!cap) { cap = new CapAdvLogger({ choose: ctx.adv.choose, supported: ctx.adv.supported, canWatch: ctx.adv.canWatch }); cap.on('adv', (line) => rec.writeExternal(line)); cap.on('change', renderCap); }
+    if (!cap) { cap = new CapAdvLogger({ choose: ctx.adv.choose, supported: ctx.adv.supported, canWatch: ctx.adv.canWatch }); cap.on('adv', (line) => rec.writeExternal(line)); cap.on('change', renderCap); cap.on('restart', (r) => rec.event('cap_restart', r)); }
     if (cap.watching) { const was = { name: cap.name, packets: cap.packets }; cap.stop(); rec.event('cap_stop', was); return; }
     const ok = await cap.choose({ all: $('recCapAll').checked });       // (straight from the tap: the browser's chooser needs it)
     if (ok) rec.event('cap_start', { name: cap.name });
