@@ -527,6 +527,32 @@ export class WebBluetoothTransport {
 // data of a broadcast only for the company ids asked for here (optionalManufacturerData): without it the readings would be hidden
 // and only the name and the signal strength would arrive.
 export const ESCORT_COMPANY = 0x0f16;
+// The capacitive sensor read over a connection (capble.js CapGattLogger): its own service must be asked for, else Chrome refuses it.
+export const ESCORT_SERVICE = '6e400001-b5a3-f393-e0a9-ffeeddc00000';
+export function requestEscort(bluetooth, { all = false } = {}) {
+  const want = { optionalServices: [ESCORT_SERVICE], optionalManufacturerData: [ESCORT_COMPANY] };
+  return bluetooth.requestDevice(all ? { acceptAllDevices: true, ...want } : { filters: [{ namePrefix: 'TD' }, { namePrefix: 'TW' }, { namePrefix: 'Escort' }], ...want });
+}
+// Open the Escort's text channel on a chosen device (capble.js CapGattLogger): onBytes(Uint8Array) gets every notification; returns
+// { write(bytes), close() }. Throws when the device cannot be connected (out of range, or the Escort phone app holds the one connection).
+export const ESCORT_RX = '6e400002-b5a3-f393-e0a9-ffeeddc00000';
+export const ESCORT_TX = '6e400003-b5a3-f393-e0a9-ffeeddc00000';
+export async function escortOpen(device, onBytes) {
+  const server = await device.gatt.connect();
+  const svc = await server.getPrimaryService(ESCORT_SERVICE);
+  const rx = await svc.getCharacteristic(ESCORT_RX);
+  const tx = await svc.getCharacteristic(ESCORT_TX);
+  const on = (ev) => { const v = ev && ev.target && ev.target.value; if (v) onBytes(new Uint8Array(v.buffer, v.byteOffset, v.byteLength)); };
+  tx.addEventListener('characteristicvaluechanged', on);
+  await tx.startNotifications();
+  return {
+    write: (b) => (rx.writeValueWithoutResponse ? rx.writeValueWithoutResponse(b) : rx.writeValue(b)),
+    close: () => { tx.removeEventListener('characteristicvaluechanged', on); escortClose(device); },
+  };
+}
+export function escortClose(device) {
+  try { if (device && device.gatt && device.gatt.connected) device.gatt.disconnect(); } catch (e) { /* gone already */ }
+}
 export function requestAdvertiser(bluetooth, { all = false } = {}) {
   const want = { optionalManufacturerData: [ESCORT_COMPANY] };
   return bluetooth.requestDevice(all ? { acceptAllDevices: true, ...want } : { filters: [{ namePrefix: 'TD' }, { namePrefix: 'TW' }, { namePrefix: 'Escort' }], ...want });

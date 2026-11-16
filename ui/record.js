@@ -3,7 +3,7 @@
 import { STR, t } from '../core.js';
 import { REF_KINDS, RAW_MODES, PART_BYTES } from '../recorder.js';
 import { deliverTextFiles } from '../export.js';
-import { CapAdvLogger } from '../capble.js';
+import { CapGattLogger } from '../capble.js';
 import { $, msg, busy, copyTxt } from './dom.js';
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -222,8 +222,6 @@ export function initRecord(ctx) {
   const capBrowser = () => {
     const ua = navigator.userAgent || '';
     if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return { kind: 'ios' };
-    if (/Edg[A]?\//.test(ua)) return { kind: 'flag', name: 'Edge', url: 'edge://flags/#enable-experimental-web-platform-features' };
-    if (/Chrome\//.test(ua) && !/SamsungBrowser|OPR\/|Firefox|FxiOS|CriOS/.test(ua)) return { kind: 'flag', name: 'Chrome', url: 'chrome://flags/#enable-experimental-web-platform-features' };
     return { kind: 'other' };
   };
   function renderCapGuide(show) {
@@ -242,13 +240,13 @@ export function initRecord(ctx) {
     $('recCapAll').parentElement.hidden = w;
     $('recCapInfo').hidden = !w;
     const esc = w && cap.escort;
-    if (w) $('recCapInfo').textContent = cap.last ? t('recCapInfo', { name: cap.name, n: cap.packets, ago: cap.agoS, rssi: cap.last.rssi === null ? '–' : cap.last.rssi }) + ' · ' + (esc ? t('recCapEscort', { level: esc.level, temp: esc.temp_c, cnt: esc.cnt }) : t('recCapBytes', { hex: cap.hex })) : STR.recCapWait;
+    if (w) $('recCapInfo').textContent = cap.last ? t('recCapInfo', { name: cap.name, n: cap.packets, ago: cap.agoS, rssi: cap.last.rssi === null ? '–' : cap.last.rssi }) + ' · ' + (esc ? t(esc.cnt === null ? 'recCapEscortGa' : 'recCapEscort', { level: esc.level, temp: esc.temp_c === null ? '–' : esc.temp_c, cnt: esc.cnt }) : t('recCapBytes', { hex: cap.hex })) : STR.recCapWait;
     const e = cap && cap.error;
     msg('recCapMsg', e ? (STR['recCapErr_' + e.code] ? t('recCapErr_' + e.code, { e: e.text }) : e.text) : '', e && e.code !== 'cancelled' ? 'bad' : '');
     renderCapGuide(!!(e && e.code === 'unsupported'));
   }
   $('bRecCap').addEventListener('click', async () => {
-    if (!cap) { cap = new CapAdvLogger({ choose: ctx.adv.choose, supported: ctx.adv.supported, canWatch: ctx.adv.canWatch }); cap.on('adv', (line) => rec.writeExternal(line)); cap.on('change', renderCap); cap.on('restart', (r) => rec.event('cap_restart', r)); }
+    if (!cap) { cap = new CapGattLogger({ choose: ctx.adv.choose, open: ctx.adv.open, close: ctx.adv.close, supported: ctx.adv.supported }); cap.on('adv', (line) => rec.writeExternal(line)); cap.on('change', renderCap); cap.on('restart', (r) => rec.event('cap_restart', r)); }
     if (cap.watching) { const was = { name: cap.name, packets: cap.packets }; cap.stop(); rec.event('cap_stop', was); return; }
     const ok = await cap.choose({ all: $('recCapAll').checked });       // (straight from the tap: the browser's chooser needs it)
     if (ok) rec.event('cap_start', { name: cap.name });

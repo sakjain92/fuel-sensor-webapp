@@ -1,7 +1,7 @@
 // MRM fuel sensor phone app: start-up, connection, routing between the screens.
 // Everything the screens need hangs off `ctx`; the screens never touch Web Bluetooth (they talk to ctx.client).
 import { STR, t, parseQuery, browserSupport, hasCap } from './core.js';
-import { JsonLinesClient, WebBluetoothTransport, requestAdvertiser } from './ble.js';
+import { JsonLinesClient, WebBluetoothTransport, requestEscort, escortOpen, escortClose } from './ble.js';
 import { Maintenance } from './maint.js';
 import { FillFlow } from './fill.js';
 import { LinkControl } from './link.js';
@@ -159,7 +159,7 @@ async function main() {
   const ctx = {
     $, client, app, bus, clock, maint, fill, link, geo, nav, recorder, feed, mode: q.demo ? 'demo' : 'ble', sensor: q.sensor,
     // the capacitive sensor's Bluetooth broadcast (capble.js)
-    adv: { supported: !!navigator.bluetooth, canWatch: typeof BluetoothDevice === 'undefined' ? null : 'watchAdvertisements' in BluetoothDevice.prototype, choose: (o) => requestAdvertiser(navigator.bluetooth, o) },
+    adv: { supported: !!navigator.bluetooth, canWatch: typeof BluetoothDevice === 'undefined' ? null : 'watchAdvertisements' in BluetoothDevice.prototype, choose: (o) => requestEscort(navigator.bluetooth, o), open: escortOpen, close: escortClose },
     demoCode: demoKit ? demoKit.loginCode : '', variant: '',
     pace: q.demo === 'fast' ? { firstTryMs: 1500, retryMs: 500, dropWaitMs: 8000, giveUpMs: 6500 } : { firstTryMs: 5000, retryMs: 3000 },
     onConnected,

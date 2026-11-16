@@ -139,3 +139,150 @@ export class CapAdvLogger extends Emitter {
     return Object.entries(l.mfr || {}).map(([k, v]) => `${k}:${v}`).concat(Object.entries(l.svc || {}).map(([k, v]) => `${k}:${v}`)).join(' ');
   }
 }
+
+// ---- Reading the capacitive sensor over a CONNECTION (16 Nov 2026). Listening to its broadcasts needs a browser setting and, worse, Chrome
+// silently stops delivering them (14 Nov: 16 % of the broadcasts arrived; 16 Nov on a laptop: 0 in 8 min while a direct listener heard
+// them). A connection works in every Chrome / Edge with Web Bluetooth, no setting. Protocol worked out from the Escort phone app's Bluetooth
+// log (16 Nov 2026, TW_133978): plain text lines ending in CR, no password. Write "GA\r" (get all) to ESC_RX; the reply comes as
+// notifications on ESC_TX, split over several packets: "AGA,UT:1:26,UL:1:1453,UF:1:1753,...,SE:1:133978,...\r", fields key:type:value.
+// UL = level (1..4095, as the Escort app shows it), UT = temperature in C, SE = serial; the other fields are kept as text in the line.
+// The sensor takes ONE connection at a time: the Escort phone app must be disconnected.
+export const ESC_SVC = '6e400001-b5a3-f393-e0a9-ffeeddc00000';
+export const ESC_RX = '6e400002-b5a3-f393-e0a9-ffeeddc00000';
+export const ESC_TX = '6e400003-b5a3-f393-e0a9-ffeeddc00000';
+
+// One "AGA,..." reply as {fields}; null for anything else.
+export function gaParse(s) {
+  if (typeof s !== 'string' || !s.startsWith('AGA,')) return null;
+  const f = {};
+  for (const part of s.slice(4).split(',')) {
+    const m = /^([A-Z]+):\d+:(.*)$/.exec(part);
+    if (m && !(m[1] in f)) f[m[1]] = m[2];
+  }
+  return f;
+}
+const num = (x) => (x !== undefined && x !== '' && Number.isFinite(Number(x)) ? Number(x) : null);
+// One reply as a recording line: same `adv` kind as the broadcasts (so the readers keep working), marked src "gatt", the reply text kept.
+export function gaLine(name, s) {
+  const f = gaParse(s);
+  const line = { ev: 'adv', src: 'gatt', name: name || '', rssi: null, tx_power: null, ga: s };
+  if (f && num(f.UL) !== null) line.escort = { level: num(f.UL), temp_c: num(f.UT), cnt: null };
+  return line;
+}
+
+export class CapGattLogger extends Emitter {
+  // choose({all}) -> Promise<device> (ble.js requestEscort: asks for ESC_SVC); open(device, onBytes) -> Promise<{write, close}> and
+  // close(device) (ble.js escortOpen / escortClose: only ble.js talks to Web Bluetooth); supported: the browser has Web Bluetooth.
+  constructor({ choose, open, close, supported = true, clock = realClock } = {}) {
+    super();
+    Object.assign(this, { chooser: choose, opener: open, closer: close, isSupported: !!supported, clock });
+    this.state = 'idle';            // idle | watching (connected or reconnecting)
+    this.device = null;
+    this.name = '';
+    this.packets = 0;               // readings
+    this.restarts = 0;              // reconnections
+    this.last = null;
+    this.lastAt = 0;
+    this.error = null;
+    this._rx = null;                // the open link {write, close}
+    this._buf = '';
+    this._busy = false;
+    this._failed = false;
+    this._onGone = () => { this._rx = null; };
+  }
+  get supported() { return this.isSupported && typeof this.chooser === 'function' && typeof this.opener === 'function'; }
+  get watching() { return this.state === 'watching'; }
+  get connected() { return !!this._rx; }
+
+  // Must be called straight from a tap (the browser's chooser).
+  async choose({ all = false } = {}) {
+    this.error = null;
+    if (!this.supported) { this.error = { code: 'unsupported', text: '' }; this.emit('change'); return false; }
+    let device;
+    try {
+      device = await this.chooser({ all });
+    } catch (e) {
+      this.error = e && e.name === 'NotFoundError' ? { code: 'cancelled', text: '' } : { code: 'other', text: (e && e.message) || 'error' };
+      this.emit('change');
+      return false;
+    }
+    this.stop();
+    this.device = device;                                    // (the notifications check it)
+    try {
+      await this._connect(device);
+    } catch (e) {
+      this.device = null;
+      this._drop(device);
+      this.error = { code: 'other', text: (e && e.message) || 'error' };
+      this.emit('change');
+      return false;
+    }
+    Object.assign(this, { name: device.name || '', packets: 0, restarts: 0, last: null, lastAt: this.clock.now(), state: 'watching', _failed: false });
+    if (typeof device.addEventListener === 'function') device.addEventListener('gattserverdisconnected', this._onGone);
+    this._wd = this.clock.setInterval(() => this._tick(), CapGattLogger.POLL_MS);
+    this._ask();
+    this.emit('change');
+    return true;
+  }
+  async _connect(device) {
+    this._buf = '';
+    this._rx = await this.opener(device, (b) => { if (this.device === device) this._bytes(b); });
+  }
+  _drop(device) {
+    const l = this._rx;
+    this._rx = null;
+    if (l) { try { l.close(); } catch (e) { /* gone already */ } } else if (typeof this.closer === 'function') this.closer(device);
+  }
+  async _ask() {
+    const rx = this._rx;
+    if (!rx) return;
+    try { await rx.write(new Uint8Array([0x47, 0x41, 0x0d])); } catch (e) { /* "GA\r"; the next tick finds out */ }
+  }
+  // Every POLL_MS: ask for a reading; with nothing for STALL_MS (or the link gone) reconnect to the same device (no chooser needed).
+  async _tick() {
+    const d = this.device;
+    if (!d || this._busy) return;
+    if (this._rx && this.clock.now() - this.lastAt < CapGattLogger.STALL_MS) { this._ask(); return; }
+    if (!this._rx && this._failed && this.clock.now() - this.lastAt < CapGattLogger.STALL_MS) return;   // after a failed try: wait STALL_MS
+    this._busy = true;
+    const quietS = Math.round((this.clock.now() - this.lastAt) / 1000);
+    this._drop(d);
+    let ok = true, text = '';
+    try { await this._connect(d); } catch (e) { ok = false; text = (e && e.message) || 'error'; this._rx = null; }
+    this._busy = false;
+    if (this.device !== d) { this._drop(d); return; }       // stopped meanwhile
+    this.restarts++;
+    this._failed = !ok;
+    this.lastAt = this.clock.now();                          // the next try comes STALL_MS later
+    this.emit('restart', { n: this.restarts, quiet_s: quietS, ok, error: text });
+    this.emit('change');
+    if (ok) this._ask();
+  }
+  stop() {
+    if (this._wd) { this.clock.clearInterval(this._wd); this._wd = null; }
+    const d = this.device;
+    this.device = null;
+    if (d) { if (typeof d.removeEventListener === 'function') d.removeEventListener('gattserverdisconnected', this._onGone); this._drop(d); }
+    if (this.state !== 'idle') { this.state = 'idle'; this.emit('change'); }
+  }
+  _bytes(b) {
+    for (const x of b) this._buf += String.fromCharCode(x);
+    if (this._buf.length > 4096) this._buf = this._buf.slice(-4096);
+    let i;
+    while ((i = this._buf.indexOf('\r')) >= 0) {
+      const s = this._buf.slice(0, i);
+      this._buf = this._buf.slice(i + 1);
+      if (!s.startsWith('AGA,')) continue;                 // "WRN" and the like
+      const line = gaLine(this.name, s);
+      this.packets++;
+      this.last = line;
+      this.lastAt = this.clock.now();
+      this.emit('adv', line);
+    }
+  }
+  get agoS() { return this.last ? Math.max(0, Math.round((this.clock.now() - this.lastAt) / 1000)) : null; }
+  get escort() { return (this.last && this.last.escort) || null; }
+  get hex() { return this.last ? this.last.ga.slice(0, 60) : ''; }
+  static POLL_MS = 3000;     // one reading every 3 s (the Escort app asks every ~4 s)
+  static STALL_MS = 15000;   // no reply for 15 s: reconnect
+}
