@@ -7,13 +7,13 @@
 //
 // A page request (the QR code's address ends in ?d=PROCOM-SENSOR-...) always gets the stored index.html, whatever its query.
 // Nothing here talks to any server except for the app's own files, once, at install.
-const BUILD = '4a144dd17057cfe9';
+const BUILD = '34bce687c6021d65';
 const CACHE = 'mrm-fuel-' + BUILD;
 const FILES = [
   'index.html', 'style.css', 'manifest.webmanifest', 'app.js', 'config.js', 'util.js', 'core.js', 'ble.js', 'csv.js', 'reportfile.js',
-  'export.js', 'fill.js', 'geo.js', 'storage.js', 'maint.js', 'restart.js', 'ota.js', 'regs.js', 'regs_table.js', 'link.js', 'logs.js', 'viz.js', 'rawfeed.js', 'recorder.js', 'recstore.js', 'capble.js', 'build.js',
+  'export.js', 'fill.js', 'geo.js', 'storage.js', 'maint.js', 'restart.js', 'ota.js', 'regs.js', 'regs_table.js', 'link.js', 'logs.js', 'viz.js', 'rawfeed.js', 'recorder.js', 'recstore.js', 'capble.js', 'fieldlog.js', 'flogstore.js', 'fake_flog.js', 'build.js',
   'fake_sensor.js', 'ui/dom.js', 'ui/connect.js', 'ui/home.js', 'ui/fill.js', 'ui/login.js', 'ui/maint.js', 'ui/fw.js', 'ui/rescal.js', 'ui/regs.js',
-  'ui/logs.js', 'ui/viz.js', 'ui/record.js', 'ui/wait.js', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png',
+  'ui/logs.js', 'ui/viz.js', 'ui/record.js', 'ui/fieldlog.js', 'ui/wait.js', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png',
 ];
 
 const url = (f) => new URL(f, self.registration.scope).href;

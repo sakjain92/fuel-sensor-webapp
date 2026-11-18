@@ -10,6 +10,7 @@
 import { realClock, utf8, utf8Decode, base64Decode, base64Encode } from './util.js';
 import { ConnectError, DisconnectedError, MAX_LINE } from './ble.js';
 import { RESCAL_NOM, RESCAL_PROBE_MAX, RESCAL_PROBE_MIN, rescalTol } from './core.js';
+import { FakeFieldLog } from './fake_flog.js';
 
 const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 export const DEMO_RESPONSE = 'DEM0'.repeat(26);               // 104 symbols
@@ -80,6 +81,8 @@ export class FakeSensor {
     this.endFail = o.endFail || null;              // ota_end answers this error code
     this.rssi = o.rssi === undefined ? -58 : o.rssi;
     this.regsMap = o.regsMap === undefined ? 2 : o.regsMap;     // the register map version of `regs`: 2 = 41 words with tilt; 1 = 38 words (older firmware); null = no `map` key (older still)
+    this.flogOpt = o.flog || null;                 // the field log (fw 3.0.3: hello cap `flog`, commands flog_*): true, or {demo, sectors, id, boot} for FakeFieldLog
+    this._flog = null;
     this.rtc = !!o.rtc;                            // a battery-backed clock chip is fitted: the sensor knows the time from the start
     this.s = {
       fw: o.fw || '2.0.0',
@@ -384,8 +387,38 @@ export class FakeSensor {
 
   // ------------------------------------------------------------------ commands: general and login
   cmd_hello() { return { proto: 1, fw: this.s.fw, variant: this.variant, chip: this.chip, mac: this.mac, caps: this._caps(), min_app: 1 }; }
-  _caps() { return ['status', 'fill', 'maint', 'ota', 'link', 'regs', 'clock', 'capacity'].concat(this.chip === 'esp32c3' ? ['rescal', 'range'] : [], this.variant === 'debug' ? ['logs', 'raw'] : []); }
+  _caps() { return ['status', 'fill', 'maint', 'ota', 'link', 'regs', 'clock', 'capacity'].concat(this.chip === 'esp32c3' ? ['rescal', 'range'] : [], this.variant === 'debug' ? ['logs', 'raw'] : [], this.flogOpt ? ['flog'] : []); }
   cmd_ping() { return {}; }
+
+  // ------------------------------------------------------------------ the field log (FIELDLOG.md 7; open, no login)
+  get flog() { if (!this.flogOpt) throw new Err('unknown_cmd', 'unknown command'); if (!this._flog) this._flog = new FakeFieldLog({ clock: this.clock, ...(typeof this.flogOpt === 'object' ? this.flogOpt : {}) }); return this._flog; }
+  cmd_flog_info() { return this.flog.info(); }
+  cmd_flog_read(req) {
+    const f = this.flog;
+    if (!isUint(req.pos)) throw new Err('bad_input', 'pos');
+    const r = f.ring.read(req.pos, 42);
+    this.flogReads = (this.flogReads || 0) + 1;
+    const reply = { pos: r.pos, n: r.n, next: r.next, head: r.head, oldest: r.oldest, d: base64Encode(r.d) };
+    if (this.hooks.flogDropAfter > 0 && this.flogReads >= this.hooks.flogDropAfter) {          // test hook: the link goes away in the middle of this page's answer
+      this.hooks.flogDropAfter = 0;
+      this._reply(req.id, reply);
+      if (this.out) this.detach(this.out, 'sensor');
+      return undefined;
+    }
+    return reply;
+  }
+  cmd_flog_sync(req) {
+    const f = this.flog;
+    if (!isUint(req.t) || !Number.isInteger(req.tz) || req.tz < -840 || req.tz > 840) throw new Err('bad_input', 't/tz');
+    f.sync(req.t, req.tz);
+    return {};
+  }
+  cmd_flog_note(req) {
+    const f = this.flog;
+    if (![1, 2, 3].includes(req.kind) || typeof req.mm !== 'number' || typeof req.litres !== 'number' || !isUint(req.t)) throw new Err('bad_input', 'kind/mm/litres/t');
+    f.note(req.kind, req.mm, req.litres, req.t);
+    return {};
+  }
   cmd_status() { return this.statusObject(); }
   cmd_subscribe(req) {
     const ok = ['status', 'log', 'link', 'regs'];
@@ -973,7 +1006,7 @@ export function createDemo({ fast = false, mac = 'A1B2C3D4E5F6', clock, variant 
   const sensor = new FakeSensor({
     clock, mac, variant, rtc, rtcOffsetS: -23, level_mm: 123.45, burnLps: 0.02 * k, pourLps: 1.5 * k,
     settleMinS: fast ? 2 : 8, settleMaxS: fast ? 6 : 20, rebootMs: fast ? 1500 : 4000, trialMs: fast ? 1500 : 8000,
-    linkSwitchMs: fast ? 300 : 1200, coredump: 1500,
+    linkSwitchMs: fast ? 300 : 1200, coredump: 1500, flog: true,
   });
   const transport = new FakeSensorTransport(sensor, { maxWrite: 244, otaBytesPerS: fast ? 400000 : 12000, clock });
   return { sensor, transport, loginCode: DEMO_RESPONSE };

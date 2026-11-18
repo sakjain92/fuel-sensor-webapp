@@ -19,13 +19,16 @@ import { initRescal } from './ui/rescal.js';
 import { initRegs } from './ui/regs.js';
 import { initLogs } from './ui/logs.js';
 import { initViz } from './ui/viz.js';
+import { initFieldLog } from './ui/fieldlog.js';
 import { Recorder } from './recorder.js';
 import { BUILD } from './build.js';
 import { RawFeed } from './rawfeed.js';
 import { LazyRecStore } from './recstore.js';
+import { FieldLog } from './fieldlog.js';
+import { LazyFlogStore } from './flogstore.js';
 import { initWait } from './ui/wait.js';
 
-const PAGES = ['pUnsupported', 'pConnect', 'pHome', 'pLogin', 'pMaint', 'pFw', 'pRes', 'pRegs', 'pLogs', 'pViz', 'pWait'];
+const PAGES = ['pUnsupported', 'pConnect', 'pHome', 'pLogin', 'pMaint', 'pFw', 'pRes', 'pRegs', 'pLogs', 'pFlog', 'pViz', 'pWait'];
 
 async function main() {
   applyStrings();
@@ -72,6 +75,7 @@ async function main() {
   const fill = new FillFlow({ client, geo, storage: makeStorage(), clock, mac: q.sensor ? q.sensor.mac : '' });
   const link = new LinkControl({ client, clock });
   const feed = new RawFeed({ client });                          // the raw radar stream, shared by the live plot and the recorder
+  const flog = new FieldLog({ client, store: new LazyFlogStore(), clock, app: { build: BUILD } });         // (the phone's database is only created when the field log is used)
   const recorder = new Recorder({ client, feed, store: new LazyRecStore(), clock, app: { build: BUILD, host: location.host, ua: navigator.userAgent, tzOffsetMin: new Date().getTimezoneOffset() } });
 
   // ---- navigation
@@ -92,6 +96,7 @@ async function main() {
       if (maint.active && maint.grant.settings && hasCap(client.hello, 'rescal')) showPage('pRes'); else nav.go('maint');
     } else if (h === 'regs') showPage('pRegs');
     else if (h === 'logs' && ctx.variant === 'debug') showPage('pLogs');
+    else if (h === 'flog' && hasCap(client.hello, 'flog')) showPage('pFlog');          // (any build: the sensor says it keeps a field log)
     else if (h === 'viz' && ctx.variant === 'debug' && hasCap(client.hello, 'raw')) showPage('pViz');
     else showPage('pHome');
   }
@@ -157,7 +162,7 @@ async function main() {
 
   // ---- the context the screens use
   const ctx = {
-    $, client, app, bus, clock, maint, fill, link, geo, nav, recorder, feed, mode: q.demo ? 'demo' : 'ble', sensor: q.sensor,
+    $, client, app, bus, clock, maint, fill, link, geo, nav, recorder, feed, flog, mode: q.demo ? 'demo' : 'ble', sensor: q.sensor,
     // the capacitive sensor's Bluetooth broadcast (capble.js)
     adv: { supported: !!navigator.bluetooth, canWatch: typeof BluetoothDevice === 'undefined' ? null : 'watchAdvertisements' in BluetoothDevice.prototype, choose: (o) => requestEscort(navigator.bluetooth, o), open: escortOpen, close: escortClose },
     demoCode: demoKit ? demoKit.loginCode : '', variant: '',
@@ -190,6 +195,7 @@ async function main() {
   screens.pRes = initRescal(ctx);
   screens.pRegs = initRegs(ctx);
   screens.pLogs = initLogs(ctx);
+  screens.pFlog = initFieldLog(ctx);
   screens.pViz = initViz(ctx);
   const recUi = screens.pViz.record;
   screens.pWait = initWait(ctx);

@@ -122,6 +122,7 @@
   </details>
   <button id="bMaint" class="btn big" type="button"></button>
   <button id="bRegs" class="btn gap" type="button" data-t="rgBtn"></button>
+  <button id="bFlog" class="btn gap" type="button" data-t="flBtn" hidden></button>
   <button id="bLogs" class="btn gap" type="button" data-t="lgBtn" hidden></button>
   <button id="bViz" class="btn gap" type="button" data-t="vizBtn" hidden></button>
   <p class="hint center mt" data-t="bt_disconnectNote"></p>
@@ -357,6 +358,10 @@
   <h1 data-t="fwTitle"></h1>
   <div id="fwPick" class="card">
     <p id="fwNow2" class="hint"></p>
+    <div id="fwLog" class="msg warn" hidden>
+      <p id="fwLogT"></p>
+      <button id="bFwLog" class="btn" type="button" data-go="flog" data-t="fwFlogOpen"></button>
+    </div>
     <label id="fwPickL" class="btn file"><span data-t="fwChoose"></span><input id="fwFile" type="file"></label>
     <p id="fwSummary" class="big2 mt" hidden></p>
     <dl id="fwDl" class="dl mt" hidden></dl>
@@ -413,6 +418,80 @@
   <div class="row3"><button id="bLgPause" class="btn" type="button"></button><button id="bLgClear" class="btn" type="button" data-t="lgClear"></button><button id="bLgCopy" class="btn" type="button" data-t="lgCopy"></button></div>
   <p id="lgInfo" class="hint" role="status"></p>
   <pre id="lgOut" class="logout" tabindex="0"></pre>
+</section>
+
+<section id="pFlog" hidden>
+  <button class="lnk" type="button" data-go="" data-t="back"></button>
+  <h1 data-t="flTitle"></h1>
+  <p class="hint" data-t="flIntro"></p>
+
+  <div class="card">
+    <button id="bFlGet" class="btn pri big" type="button" data-t="flGet"></button>
+    <div id="flProg" hidden>
+      <div class="bar"><i id="flBar"></i></div>
+      <p id="flProgT" class="hint" role="status"></p>
+      <button id="bFlStop" class="lnk" type="button" data-t="flStop"></button>
+    </div>
+    <p id="flPhone" class="hint"></p>
+    <p id="flLast" class="hint"></p>
+    <p id="flBehind" class="hint" hidden></p>
+    <p id="flMem" class="msg warn" data-t="flMemory" hidden></p>
+    <div id="flRes" hidden></div>
+  </div>
+
+  <div class="card">
+    <div class="row2"><button id="bFlSave" class="btn pri" type="button" data-t="flSave"></button><button id="bFlShare" class="btn" type="button" data-t="flShare"></button></div>
+    <p class="hint" data-t="flSaveHint"></p>
+    <p id="flSaveMsg" class="msg" hidden></p>
+    <ul id="flOlder" class="log" hidden></ul>
+  </div>
+
+  <div class="card">
+    <h2 data-t="flNoteTitle"></h2>
+    <p class="hint" data-t="flNoteHint"></p>
+    <label class="vzlab" for="flNoteKind" data-t="flNoteKind"></label>
+    <select id="flNoteKind"></select>
+    <div id="flNoteMmBox"><label class="vzlab" for="flNoteMm" data-t="flNoteMm"></label><input id="flNoteMm" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="done"></div>
+    <div id="flNoteLBox" hidden><label class="vzlab" for="flNoteL" data-t="flNoteL"></label><input id="flNoteL" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="done"></div>
+    <p id="flNoteMsg" class="msg" hidden></p>
+    <button id="bFlNote" class="btn pri mt" type="button" data-t="flNoteAdd"></button>
+  </div>
+
+  <div class="card">
+    <h2 data-t="flSumTitle"></h2>
+    <p id="flSumEmpty" class="hint" data-t="flSumEmpty"></p>
+    <div id="flTiles" class="fltiles" hidden>
+      <div class="tt"><span data-t="flSpan"></span><b id="flT_span"></b><small id="flT_span_s"></small></div>
+      <div class="tt"><span data-t="flMinutes"></span><b id="flT_min"></b><small id="flT_min_s"></small></div>
+      <div class="tt"><span data-t="flStarts"></span><b id="flT_starts"></b><small id="flT_starts_s"></small></div>
+      <div class="tt"><span data-t="flSteps"></span><b id="flT_steps"></b><small id="flT_steps_s"></small></div>
+      <div class="tt"><span data-t="flConf"></span><b id="flT_conf"></b><small id="flT_conf_s"></small></div>
+      <div class="tt"><span data-t="flOpen"></span><b id="flT_open"></b><small id="flT_open_s"></small></div>
+      <div class="tt"><span data-t="flDmg"></span><b id="flT_dmg"></b><small id="flT_dmg_s"></small></div>
+      <div class="tt"><span data-t="flSnaps"></span><b id="flT_snaps"></b><small id="flT_snaps_s"></small></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 data-t="flChartsTitle"></h2>
+    <label class="vzlab" for="flRange" data-t="flRange"></label>
+    <select id="flRange"></select>
+    <p id="flNoData" class="hint" data-t="flNoData"></p>
+    <div id="flCharts" hidden>
+      <h3 data-t="flChartLevel"></h3>
+      <canvas id="flC1" class="flcanvas" role="img"></canvas>
+      <p class="fllegend"><span class="flk k1" data-t="flLgLevel"></span><span class="flk k2" data-t="flLgSurf"></span><span class="flk k3" data-t="flLgFenv"></span><span class="flk k4" data-t="flLgStep"></span><span class="flk k5" data-t="flLgBoot"></span><span class="flk k6" data-t="flLgOpen"></span><span class="flk k7" data-t="flLgUnknown"></span></p>
+      <h3 data-t="flChartConf"></h3>
+      <canvas id="flC2" class="flcanvas" role="img"></canvas>
+      <h3 data-t="flChartTv"></h3>
+      <canvas id="flC3" class="flcanvas" role="img"></canvas>
+      <p class="fllegend"><span class="flk k1" data-t="flLgTemp"></span><span class="flk k3" data-t="flLgVib"></span></p>
+      <h3 data-t="flChartTilt"></h3>
+      <canvas id="flC4" class="flcanvas" role="img"></canvas>
+      <p class="fllegend"><span class="flk k1" data-t="flLgX"></span><span class="flk k3" data-t="flLgY"></span></p>
+      <p id="flCursor" class="flcursor" role="status"></p>
+    </div>
+  </div>
 </section>
 
 <section id="pViz" hidden>

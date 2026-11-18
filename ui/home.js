@@ -40,6 +40,7 @@ export function initHome(ctx) {
     $('rd').hidden = !st;
     $('bMaint').textContent = ctx.maint.active ? STR.maintOpen : STR.maint;
     $('bLogs').hidden = ctx.variant !== 'debug';
+    $('bFlog').hidden = !hasCap(client.hello, 'flog');
     $('bViz').hidden = !(ctx.variant === 'debug' && hasCap(client.hello, 'raw'));
     renderBt();
     if (!st) return;
@@ -109,6 +110,7 @@ export function initHome(ctx) {
   $('bMaint').addEventListener('click', () => ctx.nav.go('maint'));
   $('bRegs').addEventListener('click', () => ctx.nav.go('regs'));
   $('bLogs').addEventListener('click', () => ctx.nav.go('logs'));
+  $('bFlog').addEventListener('click', () => ctx.nav.go('flog'));
   $('bViz').addEventListener('click', () => ctx.nav.go('viz'));
   let discArmed = null;                                    // a recording of hours is not ended by a tap on Disconnect: it asks once more
   $('bDisc').addEventListener('click', () => {

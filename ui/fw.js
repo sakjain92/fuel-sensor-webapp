@@ -1,8 +1,9 @@
 // Firmware update screen: pick the .fwpkg, check it, send it over Bluetooth with progress, speed and a live countdown.
 import {
-  STR, t, fmtBytes, fmtIST, fmtSpeed, fmtEta, chipName, buildText, parseFwpkgHeader, checkPackage, fwSummary, FWPKG_HEADER,
+  STR, t, fmtBytes, fmtIST, fmtSpeed, fmtEta, chipName, buildText, parseFwpkgHeader, checkPackage, fwSummary, FWPKG_HEADER, fmtDuration, hasCap,
 } from '../core.js';
 import { OtaUploader, otaErrorText } from '../ota.js';
+import { CELLS_PER_DAY } from '../fieldlog.js';
 import { $, msg, rows, setBar } from './dom.js';
 
 export function initFw(ctx) {
@@ -32,6 +33,20 @@ export function initFw(ctx) {
     const d = device();
     $('fwNow2').textContent = d.fw ? t('fwNow', { v: d.fw, b: buildText(d.variant) }) : '';
     maint.loadState();                                    // the size of the update area, for the check before sending
+    checkLog();
+  }
+
+  // An update erases the field log (FIELDLOG.md 1): when the sensor has one that this phone does not hold, say so, with a way to the Field log page. It never blocks.
+  let logGen = 0;
+  async function checkLog() {
+    const mine = ++logGen;
+    $('fwLog').hidden = true;
+    if (!hasCap(ctx.client.hello, 'flog') || !ctx.flog) return;
+    let u = null;
+    try { u = await ctx.flog.unread(); } catch (e) { u = { known: false, unread: true, never: false, cells: 0 }; }
+    if (mine !== logGen || !u.unread || up || resultShown) return;
+    $('fwLogT').textContent = !u.known ? STR.fwFlogUnknown : u.never ? STR.fwFlogNever : t('fwFlogWarn', { t: fmtDuration((u.cells / CELLS_PER_DAY) * 86400) });
+    $('fwLog').hidden = false;
   }
 
   async function readHead(f) {

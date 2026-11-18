@@ -204,3 +204,18 @@ h3{font-size:16px;margin:14px 0 6px}
 .reccap{margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--line)}
 .reclog .data{color:var(--mut);font-size:14px}
 .recKeep{margin:2px 0 6px}
+/* Field log (fw 3.0.3) */
+.fltiles{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.fltiles .tt b{font-size:min(26px,6.4vw)}
+.flcanvas{display:block;width:100%;height:190px;background:var(--card);border:1px solid var(--line);border-radius:6px;touch-action:pan-y;-webkit-user-select:none;user-select:none}
+.fllegend{display:flex;flex-wrap:wrap;gap:2px 14px;margin:4px 0 10px;font-size:13px;color:var(--mut)}
+.flk:before{content:"";display:inline-block;width:14px;height:4px;margin-right:5px;vertical-align:middle;background:var(--c,var(--mut))}
+.flk.k1{--c:var(--acc)}
+.flk.k2{--c:var(--ok)}
+.flk.k3{--c:var(--warn)}
+.flk.k5{--c:var(--bad)}
+.flk.k6{--c:var(--warn);opacity:.55}
+.flk.k7{--c:var(--mut);opacity:.5}
+.flk.k4:before{display:none}
+.flcursor{position:sticky;bottom:0;margin:8px -4px 0;padding:6px 4px;background:var(--card);border-top:1px solid var(--line);font-size:14px;font-variant-numeric:tabular-nums;min-height:2.6em}
+#flRes .msg{margin:8px 0 0}
