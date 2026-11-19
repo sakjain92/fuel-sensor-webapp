@@ -3,7 +3,7 @@
 import { STR, t } from '../core.js';
 import { REF_KINDS, RAW_MODES, PART_BYTES } from '../recorder.js';
 import { deliverTextFiles } from '../export.js';
-import { CapGattLogger } from '../capble.js';
+import { CapGattLogger, escortMm } from '../capble.js';
 import { $, msg, busy, copyTxt } from './dom.js';
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -13,6 +13,10 @@ const fmtDate = (pt) => new Date(pt).toLocaleString([], { day: '2-digit', month:
 const fmtMb = (b) => (b / 1e6).toFixed(b < 1e6 ? 2 : 1);
 export const fmtMoved = (d) => (d > 0 ? '+' : d < 0 ? '−' : '') + Math.abs(d).toFixed(1);
 
+// The capacitive level after a reading and after the 30-s data line, only while the capacitive sensor is being read (Recorder._capMm:
+// undefined = not read, nothing shown; null = no reading in the last 20 s).
+const capTxt = (mm) => (mm === undefined ? '' : ' · ' + (Number.isFinite(mm) ? t('recLogCap', { mm: mm.toFixed(1) }) : STR.recLogCapNone));
+
 // One line of the recording log (entries come from Recorder._note).
 export function logView(e) {
   switch (e.kind) {
@@ -21,7 +25,7 @@ export function logView(e) {
       const k = REF_KINDS.find((x) => x.id === e.refKind);
       const value = e.value === null || e.value === undefined ? '' : `${e.value} ${e.unit}`;
       const text = e.text ? (value ? ' · ' : '') + e.text : '';
-      return { text: t('recLogRef', { kind: k ? STR[k.key] : e.refKind, value, text }), cls: 'ref' };
+      return { text: t('recLogRef', { kind: k ? STR[k.key] : e.refKind, value, text }) + capTxt(e.cap_mm), cls: 'ref' };
     }
     case 'link_lost': return { text: STR.recLogLinkLost, cls: 'bad' };
     case 'link_resumed': return { text: STR.recLogResumed };
@@ -41,7 +45,7 @@ export function logView(e) {
       return { text: e.what };
     case 'data': {
       const n = (x, d = 1) => (Number.isFinite(x) ? x.toFixed(d) : '–');
-      return { text: t('recLogData', { mm: n(e.level_mm), l: n(e.litres), pct: n(e.fill_pct), state: e.state || e.status || '–' }), cls: 'data' };
+      return { text: t('recLogData', { mm: n(e.level_mm), l: n(e.litres), pct: n(e.fill_pct), state: e.state || e.status || '–' }) + capTxt(e.cap_mm), cls: 'data' };
     }
     default: return { text: e.kind };
   }
@@ -211,6 +215,7 @@ export function initRecord(ctx) {
 
   // ---- the capacitive sensor's Bluetooth broadcast, listened to at the same time (capble.js)
   let cap = null;
+  rec.capMm = () => (cap && cap.watching ? cap.levelMm : undefined);   // (the recording log shows it only while the sensor is read)
   // Every recording says whether the capacitive sensor is in it, and why not: the state at the start (and when a recording is continued),
   // then every start, stop and failed try of the listener while it runs.
   const capState = () => {
@@ -240,7 +245,7 @@ export function initRecord(ctx) {
     $('recCapAll').parentElement.hidden = w;
     $('recCapInfo').hidden = !w;
     const esc = w && cap.escort;
-    if (w) $('recCapInfo').textContent = cap.last ? t('recCapInfo', { name: cap.name, n: cap.packets, ago: cap.agoS, rssi: cap.last.rssi === null ? '–' : cap.last.rssi }) + ' · ' + (esc ? t(esc.cnt === null ? 'recCapEscortGa' : 'recCapEscort', { level: esc.level, temp: esc.temp_c === null ? '–' : esc.temp_c, cnt: esc.cnt }) : t('recCapBytes', { hex: cap.hex })) : STR.recCapWait;
+    if (w) $('recCapInfo').textContent = cap.last ? t('recCapInfo', { name: cap.name, n: cap.packets, ago: cap.agoS, rssi: cap.last.rssi === null ? '–' : cap.last.rssi }) + ' · ' + (esc ? t(escortMm(esc.level) === null ? 'recCapEscortNoLevel' : esc.cnt === null ? 'recCapEscortGa' : 'recCapEscort', { level: esc.level, mm: escortMm(esc.level) === null ? '' : escortMm(esc.level).toFixed(1), temp: esc.temp_c === null ? '–' : esc.temp_c, cnt: esc.cnt }) : t('recCapBytes', { hex: cap.hex })) : STR.recCapWait;
     const e = cap && cap.error;
     msg('recCapMsg', e ? (STR['recCapErr_' + e.code] ? t('recCapErr_' + e.code, { e: e.text }) : e.text) : '', e && e.code !== 'cancelled' ? 'bad' : '');
     renderCapGuide(!!(e && e.code === 'unsupported'));

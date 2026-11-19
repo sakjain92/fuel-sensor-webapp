@@ -162,6 +162,15 @@ export function gaParse(s) {
   return f;
 }
 const num = (x) => (x !== undefined && x !== '' && Number.isFinite(Number(x)) ? Number(x) : null);
+
+// The capacitive level in mm, shown on the Recording page only (user 19 Nov 2026: compare the dipstick with the capacitive sensor at the one
+// test site; nothing about it on the dashboard or anywhere a customer sees). The Escort gives only 1..4095 over its probe (7000 / 6500 are
+// error codes), so this line was fitted on that site's probe TW_133978 against the radar level at still fuel: mm = 0.07112 x level + 2.93
+// (14, 16, 17 Nov recordings; on 18 Nov it was +0.28 mm off, scatter 0.74 mm; each day within -0.9..+1.4 mm). Another probe, tank or
+// mounting needs its own line. The recording keeps the raw level, so a better line can be applied later.
+export const ESCORT_MM_PER_LEVEL = 0.07112, ESCORT_MM_AT_0 = 2.93;
+export const escortMm = (level) => (Number.isFinite(level) && level >= 1 && level <= 4095 ? ESCORT_MM_PER_LEVEL * level + ESCORT_MM_AT_0 : null);
+
 // One reply as a recording line: same `adv` kind as the broadcasts (so the readers keep working), marked src "gatt", the reply text kept.
 export function gaLine(name, s) {
   const f = gaParse(s);
@@ -182,7 +191,8 @@ export class CapGattLogger extends Emitter {
     this.packets = 0;               // readings
     this.restarts = 0;              // reconnections
     this.last = null;
-    this.lastAt = 0;
+    this.lastAt = 0;                // the last reading, or the last reconnection try (the stall timer counts from it)
+    this.readAt = null;             // the last reading only
     this.error = null;
     this._rx = null;                // the open link {write, close}
     this._buf = '';
@@ -217,7 +227,7 @@ export class CapGattLogger extends Emitter {
       this.emit('change');
       return false;
     }
-    Object.assign(this, { name: device.name || '', packets: 0, restarts: 0, last: null, lastAt: this.clock.now(), state: 'watching', _failed: false });
+    Object.assign(this, { name: device.name || '', packets: 0, restarts: 0, last: null, lastAt: this.clock.now(), readAt: null, state: 'watching', _failed: false });
     if (typeof device.addEventListener === 'function') device.addEventListener('gattserverdisconnected', this._onGone);
     this._wd = this.clock.setInterval(() => this._tick(), CapGattLogger.POLL_MS);
     this._ask();
@@ -276,13 +286,22 @@ export class CapGattLogger extends Emitter {
       const line = gaLine(this.name, s);
       this.packets++;
       this.last = line;
-      this.lastAt = this.clock.now();
+      this.lastAt = this.readAt = this.clock.now();
       this.emit('adv', line);
     }
   }
-  get agoS() { return this.last ? Math.max(0, Math.round((this.clock.now() - this.lastAt) / 1000)) : null; }
+  // (from the last reading, not from a reconnection: an old reading must not look new)
+  get agoS() { return this.last && this.readAt !== null ? Math.max(0, Math.round((this.clock.now() - this.readAt) / 1000)) : null; }
   get escort() { return (this.last && this.last.escort) || null; }
   get hex() { return this.last ? this.last.ga.slice(0, 60) : ''; }
+  // The level in mm (escortMm) from a reading at most FRESH_MS old; null with none (not reading, no reading yet, a gap, no level in it).
+  // (Also shown after a free-text note: the colleague types dipstick readings as notes, 18 Nov 2026.)
+  get levelMm() {
+    const e = this.escort;
+    if (!this.watching || !e || this.readAt === null || this.clock.now() - this.readAt > CapGattLogger.FRESH_MS) return null;
+    return escortMm(e.level);
+  }
   static POLL_MS = 3000;     // one reading every 3 s (the Escort app asks every ~4 s)
   static STALL_MS = 15000;   // no reply for 15 s: reconnect
+  static FRESH_MS = 10000;   // an older reading (2 missed replies) is not shown as the capacitive level in the recording log: in a fill it would be mm off
 }

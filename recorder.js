@@ -120,6 +120,7 @@ export class Recorder extends Emitter {
     this._held = false;
     this._resuming = false;
     this._retry = null;
+    this.capMm = null;             // () => the capacitive level in mm or null, set once by the Recording page (_capMm); not per recording
     this._reset();
   }
   _reset() {
@@ -370,7 +371,7 @@ export class Recorder extends Emitter {
     this.refCount++;
     this._refBase = est && Number.isFinite(est.out) ? est.out : null;      // (not known while the link is down: the next estimate is the new base)
     this._farSince = null;
-    this._note('ref', { refKind: kindId, value, unit: kind.unit, text: note });          // (not `kind`: that is the log entry's own)
+    this._note('ref', { refKind: kindId, value, unit: kind.unit, text: note, ...this._capMm() });   // (not `kind`: that is the log entry's own)
     this._trigger('ref', HOT_MS.ref);
     this.emit('change');
     return { ok: true };
@@ -452,7 +453,13 @@ export class Recorder extends Emitter {
   _noteData() {
     const st = this._status || {}, est = this.estimate || {};
     const num = (x) => (Number.isFinite(x) ? x : null);
-    this._note('data', { level_mm: num(st.level_mm), litres: num(st.litres), fill_pct: num(st.fill_pct), status: st.status || '', state: est.state || '', out: num(est.out), temp_c: num(st.temp_c) });
+    this._note('data', { level_mm: num(st.level_mm), litres: num(st.litres), fill_pct: num(st.fill_pct), status: st.status || '', state: est.state || '', out: num(est.out), temp_c: num(st.temp_c), ...this._capMm() });
+  }
+  // The capacitive level for the recording log on the screen (not the file: its `adv` lines keep the raw reading). The Recording page sets
+  // `capMm` (() => mm | null) while the capacitive sensor is being read: {cap_mm} (null = no recent reading), or {} while it is not read.
+  _capMm() {
+    if (typeof this.capMm !== 'function') return {};
+    try { const v = this.capMm(); return v === undefined ? {} : { cap_mm: Number.isFinite(v) ? v : null }; } catch (e) { return {}; }
   }
 
   // Full-rate waveforms for a while (adaptive mode): the frames kept back until now are written first.
