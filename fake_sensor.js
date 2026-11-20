@@ -299,17 +299,25 @@ export class FakeSensor {
 
   // ------------------------------------------------------------------ views
   _lpmm() { return this.s.tank.l_mm * this.s.tank.w_mm / 1e6; }
-  // The highest level the tank can hold (firmware status.h tank_top_mm, fw 4.0.1): the height, or the level at which the capacity is reached,
-  // whichever is higher (the two are entered separately and need not agree).
-  _top() {
-    const t = this.s.tank, lp = this._lpmm(), f = lp > 0 ? t.cap_l / lp : 0;
-    return f > t.h_mm ? f : t.h_mm;
+  // The level at which the capacity is reached (firmware status.h tank_full_mm, fw 4.0.1): capacity / litres per mm; the height when the capacity
+  // or the tank area is not above 0. The level SHOWN never goes beyond it, so the level in mm, the litres and the fill percentage reach their end
+  // together (the capacity is 100 %).
+  _full() {
+    const t = this.s.tank, lp = this._lpmm();
+    return lp > 0 && t.cap_l > 0 ? t.cap_l / lp : t.h_mm;
   }
-  // The level the sensor SHOWS. From firmware 4.0.1 it is clamped to 0 .. the top of the tank (an entered or tracked level beyond it is shown as the
-  // top, with warning bit 4 once it is more than 5 mm beyond); an older firmware shows what it has.
-  _mm() { return this.levelcal ? clamp(this.s.level_mm, 0, this._top()) : this.s.level_mm; }
-  // Warning bit 4, "level outside the tank": raised once the level is more than 5 mm above the top (and kept, like every warning bit, until the next
-  // calibration). The device raises it at its next reading; here every look at the state does.
+  // The top of the tank, for the "level outside the tank" warning ONLY (firmware status.h tank_top_mm): the height or the capacity level, whichever
+  // is higher (the two are entered separately and need not agree). Fuel between the capacity level and the height is shown as full and raises no warning.
+  _top() {
+    const f = this._full(), h = this.s.tank.h_mm;
+    return f > h ? f : h;
+  }
+  // The level the sensor SHOWS. From firmware 4.0.1 it is clamped to 0 .. the capacity level (an entered or tracked level beyond it is shown as
+  // that); an older firmware shows what it has.
+  _mm() { return this.levelcal ? clamp(this.s.level_mm, 0, this._full()) : this.s.level_mm; }
+  // Warning bit 4, "level outside the tank": raised once the level, before the clamp, is more than 5 mm above the top of the tank (the higher of the
+  // height and the capacity level; and kept, like every warning bit, until the next calibration). The device raises it at its next reading; here
+  // every look at the state does.
   _rangeWarn() {
     const s = this.s;
     if (this.levelcal && s.calibrated && this._noLevelWord() === null && !(s.warn & 4) && s.level_mm > this._top() + 5) s.warn |= 4;
@@ -411,8 +419,9 @@ export class FakeSensor {
     const lpmm = this._lpmm();
     if (this.fill.stage === 'filling') {
       const dL = this.pourLps * dt;
-      // (fw 4.0.1: a tank holds no more than its top; a level already beyond it, entered by an installer, is left as it is)
-      s.level_mm = this.levelcal ? Math.max(s.level_mm, Math.min(s.level_mm + dL / lpmm, this._top())) : s.level_mm + dL / lpmm;
+      // (fw 4.0.1: a pour ends where the capacity is reached, the level the sensor shows as full; a level already beyond it, entered by an installer,
+      // is left as it is)
+      s.level_mm = this.levelcal ? Math.max(s.level_mm, Math.min(s.level_mm + dL / lpmm, this._full())) : s.level_mm + dL / lpmm;
       s.fuel.filled_l += dL;
       s.fuel.active = 'fill';
       s.fuel.pending_l = (this._mm() - this.fill.levelBefore) * lpmm;
