@@ -1,6 +1,6 @@
 // The Sensor visualization page of debug builds: the live radar echo, amplitude against distance from the sensor chip, like the
 // radar vendor's live plot. The data side is viz.js; this file only draws and wires the controls.
-import { STR, t, fmtLitres, fmtPct, levelOf, litresOf, fillPctOf, statusView } from '../core.js';
+import { STR, t, fmtLitres, fmtPct, levelOf, litresOf, fillPctOf, statusView, hasLevel } from '../core.js';
 import { SensorViz, RANGES, SCALES, niceCeil, niceTicks, FLAGS } from '../viz.js';
 import { $, msg, busy } from './dom.js';
 import { initRecord } from './record.js';
@@ -53,9 +53,10 @@ export function initViz(ctx) {
   function renderVals() {
     const st = ctx.app.status, set = (id, v) => { const el = $(id); if (el.textContent !== v) el.textContent = v; };
     if (st) {
-      set('lvLevel', fmtMm(levelOf(st)));
-      set('lvLitres', fmtLitres(litresOf(st)));
-      set('lvPct', fmtPct(fillPctOf(st)) + ' %');
+      const some = hasLevel(st);                                  // source "none": no level (the 0 is not a level)
+      set('lvLevel', some ? fmtMm(levelOf(st)) : STR.noValue);
+      set('lvLitres', some ? fmtLitres(litresOf(st)) : STR.noValue);
+      set('lvPct', some ? fmtPct(fillPctOf(st)) + ' %' : STR.noValue);
       set('lvStatus', statusView(st.status, st.source).text);
       set('lvTemp', Number.isFinite(st.temp_c) ? st.temp_c + ' °C' : '–');
     }

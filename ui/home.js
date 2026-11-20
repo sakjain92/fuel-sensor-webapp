@@ -2,6 +2,7 @@
 import {
   STR, t, fin, fmtLitres, fmtMm, fmtPct, fmtLpmm, fmtNum, fmtDuration, fmtAgo, levelOf, litresOf, capacityOf, fillPctOf, clampPct, rawAdcOf,
   rawAdcFromLitres, RAW_ADC_MAX, statusView, fuelView, tiltView, healthFlags, buildText, tankText, lpmmOf, siteLocText, linkSummary, hasCap,
+  hasLevel, warnView,
 } from '../core.js';
 import { $, rows } from './dom.js';
 
@@ -34,6 +35,21 @@ export function initHome(ctx) {
     $('btLine').textContent = STR.bt_label + ': ' + (app.lost ? STR.bt_off : linkSummary(app.link));
   }
 
+  // "Recalibration recommended" (fw 4.0.1 and later: status.warn): why, and that the level keeps working. Nothing on an older firmware (no `warn`).
+  let warnKey = '';
+  function renderWarn(st) {
+    const w = warnView(st);
+    $('warnBox').hidden = !w;
+    const key = w ? w.title + '|' + w.reasons.join('|') : '';
+    if (key === warnKey) return;
+    warnKey = key;
+    $('warnT').textContent = w ? w.title : '';
+    const ul = $('warnL');
+    ul.textContent = '';
+    if (w) for (const r of w.reasons) { const li = document.createElement('li'); li.textContent = r; ul.appendChild(li); }
+    $('warnH').textContent = w ? w.hint + ' ' + w.who : '';
+  }
+
   function render() {
     const st = app.status;
     $('conn0').hidden = !!st;
@@ -46,18 +62,20 @@ export function initHome(ctx) {
     if (!st) return;
     $('rd').className = app.lost ? 'stale' : '';
     const v = statusView(st.status, st.source), p = fillPctOf(st);
+    const some = hasLevel(st);                                    // source "none": there is NO level, and the 0 it carries is never shown as one
     $('stat').className = 'stat s-' + v.cls;
     $('statT').textContent = v.text;
     $('note').textContent = v.note;
     $('note').hidden = !v.note;
-    $('lit').textContent = fmtLitres(litresOf(st));
-    $('mm').textContent = fmtMm(levelOf(st));
-    $('barI').style.width = clampPct(p) + '%';
-    $('bar').setAttribute('aria-valuenow', String(Math.round(p)));
-    $('pct').textContent = fmtPct(p) + ' %';
-    $('cap').textContent = t('ofCap', { c: fmtLitres(capacityOf(st)) });
-    $('rawLit').textContent = t('rawAdc', { v: fmtNum(rawAdcOf(st), 0), m: String(RAW_ADC_MAX) });
+    $('lit').textContent = some ? fmtLitres(litresOf(st)) : STR.noValue;
+    $('mm').textContent = some ? fmtMm(levelOf(st)) : STR.noValue;
+    $('barI').style.width = (some ? clampPct(p) : 0) + '%';
+    if (some) $('bar').setAttribute('aria-valuenow', String(Math.round(p))); else $('bar').removeAttribute('aria-valuenow');
+    $('pct').textContent = some ? fmtPct(p) + ' %' : STR.noValue;
+    $('cap').textContent = some ? t('ofCap', { c: fmtLitres(capacityOf(st)) }) : '';
+    $('rawLit').textContent = some ? t('rawAdc', { v: fmtNum(rawAdcOf(st), 0), m: String(RAW_ADC_MAX) }) : STR.rawAdcNone;
     renderRawTable(capacityOf(st));
+    renderWarn(st);
     const tv = tiltView(st);
     $('tilt').hidden = !tv;
     if (tv) {

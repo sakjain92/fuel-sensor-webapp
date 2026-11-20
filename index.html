@@ -62,6 +62,11 @@
       <p id="tilt" class="tiltl" hidden><b id="tiltV"></b><span id="tiltS"></span></p>
       <p id="note" class="note" hidden></p>
     </div>
+    <div id="warnBox" class="msg warn" role="status" hidden>
+      <b id="warnT"></b>
+      <ul id="warnL" class="rstl"></ul>
+      <span id="warnH"></span>
+    </div>
     <p id="upd" class="upd"></p>
     <p id="btLine" class="upd"></p>
     <div id="tot" class="tot" hidden>
@@ -73,7 +78,8 @@
 
   <div id="cFill" class="card" hidden>
     <h2 data-t="frTitle"></h2>
-    <div id="fr_idle"><p class="hint" data-t="frIdleHint"></p><button id="bFrStart" class="btn pri big" type="button" data-t="frStart"></button></div>
+    <div id="fr_idle"><p id="frIdleHint" class="hint" data-t="frIdleHint"></p><button id="bFrStart" class="btn pri big" type="button" data-t="frStart"></button>
+      <p id="frNotCal" class="msg warn" role="status" data-t="frNotCal" hidden></p></div>
     <div id="fr_locating" hidden>
       <div class="spin"></div>
       <p class="big2 center" data-t="frLocating"></p>
@@ -260,6 +266,26 @@
       <p data-t="resClearQ"></p>
       <div class="row2"><button id="bResYes" class="btn" type="button" data-t="resClearYes"></button><button id="bResNo" class="btn" type="button" data-t="cancel"></button></div>
     </div>
+  </div>
+
+  <div id="cLvl" class="card" hidden>
+    <h2 data-t="lvTitle"></h2>
+    <p id="lvNow" class="big2"></p>
+    <div id="lvWarn" class="msg warn" hidden>
+      <b data-t="warnTitle"></b>
+      <ul id="lvWarnL" class="rstl"></ul>
+      <span id="lvWarnH"></span>
+    </div>
+    <p class="hint" data-t="lvHint"></p>
+    <label for="lvIn" class="big2" data-t="lvLabel"></label>
+    <input id="lvIn" inputmode="decimal" autocomplete="off" enterkeyhint="done">
+    <p id="lvErr" class="msg bad" hidden></p>
+    <button id="bLvCal" class="btn pri" type="button" data-t="lvBtn"></button>
+    <div id="lvConf" class="confirm" hidden>
+      <p id="lvConfQ"></p>
+      <div class="row2"><button id="bLvYes" class="btn pri" type="button" data-t="lvYes"></button><button id="bLvNo" class="btn" type="button" data-t="cancel"></button></div>
+    </div>
+    <p id="lvMsg" class="msg" hidden></p>
   </div>
 
   <div id="cFw" class="card" hidden>

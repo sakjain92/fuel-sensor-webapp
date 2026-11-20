@@ -28,6 +28,23 @@ export const STRINGS = {
     st_unknown: 'Status: {s}',
     noteSaved: 'Showing the last saved level',
     noteNone: 'No level measured yet',
+    // Firmware 4.0.1 and later: no level until the fuel level calibration is done, and none while there is no radar reading.
+    // (source "none": the numbers read 0 and are never shown as a level)
+    st_not_calibrated: 'Fuel level not calibrated',
+    st_no_reading: 'No radar reading. No level is shown.',
+    stn_starting: 'Starting. The level appears in a few seconds.',
+    stn_no_radar: 'Radar not responding. No level is shown.',
+    stn_safe_mode: 'Sensor fault. No level is shown.',
+    noteNotCal: 'An installer with a calibration approval must do the fuel level calibration on the Maintenance page.',
+    noValue: '–',
+    rawAdcNone: 'Raw ADC Value: –',
+    warnTitle: 'Recalibration recommended',
+    warn_1: 'The level after a power-on did not match the saved level well.',
+    warn_2: 'The level after an unreadable stretch did not match the level before it well.',
+    warn_4: 'The level went outside the tank.',
+    warn_8: 'There was no reading for 2 minutes.',
+    warnHint: 'The level keeps working. This notice goes away only with a new fuel level calibration.',
+    warnWho: 'An installer with a calibration approval does it on the Maintenance page.',
     details: 'Device details',
     d_mac: 'Sensor ID (MAC)',
     d_fw: 'Firmware version',
@@ -196,6 +213,7 @@ export const STRINGS = {
     g_settings: 'tank size, site details, fuel totals',
     g_firmware: 'firmware update',
     g_older: 'older firmware',
+    g_calibration: 'fuel level calibration',
     g_none: 'viewing only',
     finish: 'Finish',
     tankTitle: 'Tank size',
@@ -280,6 +298,29 @@ export const STRINGS = {
     clkBad: 'The sensor did not accept this phone’s time. Check the date and time on this phone.',
     clkFail: 'The clock was not set: {e}',
     clkReadFail: 'Could not read the sensor clock: {e}',
+
+    // Maintenance: fuel level calibration (firmware 4.0.1 and later, calibration approval): the installer's dipstick reading
+    lvTitle: 'Fuel level calibration',
+    lvNotCal: 'Not calibrated',
+    lvCal: 'Calibrated. Level now: {v} mm',
+    lvCalNoRead: 'Calibrated. No reading now.',
+    lvReading: 'Reading the fuel level state…',
+    lvHint: 'Measure the fuel level with a dipstick while the fuel is steady (no filling or draining), then enter the reading here. The sensor shows this level from then on.',
+    lvLabel: 'Fuel level measured with the dipstick (mm)',
+    lvBtn: 'Calibrate',
+    lvIn_empty: 'enter the dipstick reading in mm',
+    lvIn_num: 'enter a number',
+    lvIn_range: 'enter 0 to 400 mm',
+    lvConfirmSet: 'Set the fuel level to {v} mm?',
+    lvConfirmDiff: 'The sensor now reads {c} mm: this changes it by {d} mm.',
+    lvConfirmSame: 'The sensor now reads {c} mm: this does not change it.',
+    lvYes: 'Confirm',
+    lvDone: 'Fuel level calibrated: {v} mm',
+    lve_no_reading: 'The sensor has no steady reading yet. Wait a few seconds and try again.',
+    lve_moving: 'The fuel level is changing. Wait until filling or draining has stopped, then try again.',
+    lve_height: 'Mounting height out of range. Check the dipstick value and how the sensor is mounted.',
+    lve_store: 'The sensor could not save this. Try again.',
+    lve_bad_input: 'The fuel level must be between 0 and 400 mm.',
 
     // Maintenance: resistive output calibration (a proof-of-concept page; production does it once over the USB-UART tool)
     emuTitle: 'Resistive Sensor Emulation',
@@ -403,6 +444,7 @@ export const STRINGS = {
     frDoneMsg: 'Fill report #{n} is signed. Copy it or send it on WhatsApp.',
     frLast: 'Last fill report',
     frFigs: 'Operator {o}',
+    frNotCal: 'The fuel level is not calibrated. A fill can be recorded after the fuel level calibration.',
     frNotEntered: 'not entered',
     frFlags: 'Check: {f}',
     frCopy: 'Copy',
@@ -436,6 +478,7 @@ export const STRINGS = {
     fre_not_open: 'There is no open fill report. Press Start filling first.',
     fre_not_ready: 'The level has not settled yet. Wait a little.',
     fre_off: 'Fill reports are not available on this sensor.',
+    fre_not_calibrated: 'The fuel level is not calibrated. A fill can be recorded after the fuel level calibration.',
     fre_sign_error: 'The sensor could not sign the report. Try again.',
     fre_store_error: 'The sensor could not save the report. Try again.',
     fre_bad_input: 'The sensor did not accept the litres. Check the number.',
@@ -955,16 +998,34 @@ export function rawAdcOf(st) {
   return rawAdcFromLitres(litresOf(st), capacityOf(st));
 }
 
-const STATUS_CLS = { steady: 'ok', moving: 'neu', checking: 'neu', starting: 'neu', holding: 'warn', no_radar: 'warn', safe_mode: 'bad' };
+const STATUS_CLS = { steady: 'ok', moving: 'neu', checking: 'neu', starting: 'neu', holding: 'warn', no_radar: 'warn', safe_mode: 'bad', not_calibrated: 'warn', no_reading: 'warn' };
 // Status lines that already say which level is shown (no extra "last saved level" note).
-const STATUS_SAYS_LAST = { holding: 1, starting: 1, no_radar: 1, safe_mode: 1 };
+const STATUS_SAYS_LAST = { holding: 1, starting: 1, no_radar: 1, safe_mode: 1, not_calibrated: 1, no_reading: 1 };
+// Source "none" (any firmware; fw 4.0.1 and later also for starting, safe mode, no reading, not calibrated): there is NO level. The numbers read 0 and
+// must not be shown as an empty tank. What the status word then says is worded for that (STR.stn_*), where it differs from the usual text.
+export function hasLevel(st) { return !(st && st.source === 'none'); }
 export function statusView(status, source) {
   const cls = STATUS_CLS[status];
-  const text = cls ? STR['st_' + status] : t('st_unknown', { s: status || '?' });
+  let text = cls ? STR['st_' + status] : t('st_unknown', { s: status || '?' });
   let note = '';
-  if ((source === 'stored' || source === 'last_confirmed') && !STATUS_SAYS_LAST[status]) note = STR.noteSaved;
-  else if (source === 'none') note = STR.noteNone;
+  if (source === 'none') {
+    if (cls && STR['stn_' + status] !== undefined) text = STR['stn_' + status];
+    note = status === 'not_calibrated' ? STR.noteNotCal : (status === 'no_reading' || status === 'no_radar' || status === 'safe_mode') ? '' : STR.noteNone;
+  } else if ((source === 'stored' || source === 'last_confirmed') && !STATUS_SAYS_LAST[status]) note = STR.noteSaved;
   return { cls: cls || 'neu', text, note };
+}
+
+// "Recalibration recommended" (status.warn, fw 4.0.1 and later): a sum of reasons. null = nothing to show (0, or an older firmware without the field).
+// {title, reasons: [sentence, ...], hint, who}; a bit this app does not know is left out (the title and the hint still show).
+export const WARN_BITS = [1, 2, 4, 8];
+export function warnReasons(warn) {
+  if (!Number.isInteger(warn) || warn <= 0) return [];
+  return WARN_BITS.filter((b) => warn & b).map((b) => STR['warn_' + b]);
+}
+export function warnView(st) {
+  const w = st && st.warn;
+  if (!Number.isInteger(w) || w <= 0) return null;
+  return { title: STR.warnTitle, reasons: warnReasons(w), hint: STR.warnHint, who: STR.warnWho };
 }
 
 const RESET_BAD = { panic: 1, int_wdt: 1, task_wdt: 1, wdt: 1, brownout: 1 };
@@ -1011,6 +1072,7 @@ export function grantText(g) {
   if (g.settings) a.push(STR.g_settings);
   if (g.firmware) a.push(STR.g_firmware);
   if (g.firmware && g.older) a.push(STR.g_older);
+  if (g.calibration) a.push(STR.g_calibration);
   return t('grantIs', { g: a.length ? a.join(', ') : STR.g_none });
 }
 // "12.971599, 77.594566" or "not set".
@@ -1136,6 +1198,51 @@ export function parseCapacity(s) {
   const v = Math.round(parseFloat(s) * 10) / 10;
   if (!(v >= CAP_MIN && v <= CAP_MAX)) return { ok: false, err: 'range', v };
   return { ok: true, v };
+}
+// ---- fuel level calibration (PROTOCOL.md `maint_level`, fw 4.0.1 and later; hello.caps `levelcal`, calibration grant)
+export const LEVEL_CAL_MIN_MM = 0, LEVEL_CAL_MAX_MM = 400;
+// What the installer typed: the dipstick reading, 0 to 400 mm, a point or a comma, hundredths kept (the sensor keeps hundredths too).
+export function parseDipstick(s) {
+  s = String(s == null ? '' : s).trim().replace(',', '.');
+  if (!s) return { ok: false, err: 'empty' };
+  if (!/^(\d{1,6}(\.\d*)?|\.\d+)$/.test(s)) return { ok: false, err: 'num' };
+  const v = Math.round(parseFloat(s) * 100) / 100;
+  if (!(v >= LEVEL_CAL_MIN_MM && v <= LEVEL_CAL_MAX_MM)) return { ok: false, err: 'range', v };
+  return { ok: true, v };
+}
+// A reading as the screens say it: up to two decimals, no trailing zeros ("87.5", "87.46", "90").
+export function fmtDip(v) { return fin(v) ? String(Math.round(v * 100) / 100) : ''; }
+// "+2.3" / "-2.3" (one decimal, a half rounds away from zero: 7.25 is "7.3", as the numbers next to it are shown); "0.0" when it rounds to nothing.
+export function fmtSigned1(x) {
+  const a = Math.round(Math.abs(x) * 10 + 1e-9) / 10;
+  return (a === 0 ? '' : x > 0 ? '+' : '-') + a.toFixed(1);
+}
+// The question before anything is sent (PROTOCOL.md 4.2: repeat the value; on a calibrated unit that shows a level, give the difference too).
+// current: the level the sensor shows now (mm), or null/undefined when it has none or is not calibrated yet.
+export function levelConfirmText(entered, current) {
+  const q = t('lvConfirmSet', { v: fmtDip(entered) });
+  if (!fin(current)) return q;
+  const d = fmtSigned1(entered - current);
+  return q + ' ' + (d === '0.0' ? t('lvConfirmSame', { c: fmtMm(current) }) : t('lvConfirmDiff', { c: fmtMm(current), d }));
+}
+// The sensor's own sentence for a refused entry is customer-ready (firmware core/levelcal.cpp); an own sentence stands in when it sent none.
+const LEVEL_ERR_CODES = ['no_reading', 'moving', 'height', 'store', 'bad_input'];
+export function levelErrText(e) {
+  if (e && e.name === 'ProtocolError' && LEVEL_ERR_CODES.includes(e.code)) return e.msg && e.msg !== e.code ? e.msg : STR['lve_' + e.code];
+  return errText(e);
+}
+// What the Fuel level calibration card says. lv: the `level` object of maint_state / maint_level ({calibrated, valid, level_mm, entered_mm,
+// floor_off_mm, warn}) or null; st: the live status; live: the status is newer than lv (then its fields win: the level moves every second).
+// -> {known, calibrated, valid, levelMm (null when no level is shown), warn, text, reasons}
+export function levelCardView(lv, st, live) {
+  if (!lv || typeof lv !== 'object') return { known: false, calibrated: false, valid: false, levelMm: null, warn: 0, text: STR.lvReading, reasons: [] };
+  const useSt = !!(live && st);
+  const calibrated = useSt && typeof st.calibrated === 'boolean' ? st.calibrated : !!lv.calibrated;
+  const valid = calibrated && (useSt ? st.source !== 'none' : !!lv.valid);
+  const levelMm = valid ? (useSt && fin(st.level_mm) ? st.level_mm : (fin(lv.level_mm) ? lv.level_mm : null)) : null;
+  const warn = calibrated ? (useSt && Number.isInteger(st.warn) ? st.warn : (Number.isInteger(lv.warn) ? lv.warn : 0)) : 0;
+  const text = !calibrated ? STR.lvNotCal : levelMm === null ? STR.lvCalNoRead : t('lvCal', { v: fmtMm(levelMm) });
+  return { known: true, calibrated, valid: levelMm !== null, levelMm, warn, text, reasons: warnReasons(warn) };
 }
 export function validateTank(l, w, h) {
   const r = { l: parseDim(l), w: parseDim(w), h: parseDim(h) };

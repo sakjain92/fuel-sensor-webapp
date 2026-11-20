@@ -358,10 +358,11 @@ export class Recorder extends Emitter {
     } else if (!note) return { ok: false, err: 'empty' };
     const live = this.state === 'recording';             // (while the link is down there is nothing the sensor shows: the last status would be old)
     const st = (live && this._status) || {}, est = live ? this.estimate : null;
+    const shown = st.source !== 'none';                    // (source "none": the sensor shows no level, and the 0 it sends is not one)
     const line = {
       ev: 'ref', kind: kindId, value, unit: kind.unit, text: note,
-      shown_level_mm: Number.isFinite(st.level_mm) ? st.level_mm : null, shown_litres: Number.isFinite(st.litres) ? st.litres : null,
-      shown_pct: Number.isFinite(st.fill_pct) ? st.fill_pct : null, est_h: est && Number.isFinite(est.h) ? est.h : null,
+      shown_level_mm: shown && Number.isFinite(st.level_mm) ? st.level_mm : null, shown_litres: shown && Number.isFinite(st.litres) ? st.litres : null,
+      shown_pct: shown && Number.isFinite(st.fill_pct) ? st.fill_pct : null, est_h: est && Number.isFinite(est.h) ? est.h : null,
     };
     this._write(line);
     this._flush();                                         // (the reading is the one thing nobody can type again: to the phone's storage at once, also while the link is down and no timer runs)
@@ -452,8 +453,8 @@ export class Recorder extends Emitter {
   }
   _noteData() {
     const st = this._status || {}, est = this.estimate || {};
-    const num = (x) => (Number.isFinite(x) ? x : null);
-    this._note('data', { level_mm: num(st.level_mm), litres: num(st.litres), fill_pct: num(st.fill_pct), status: st.status || '', state: est.state || '', out: num(est.out), temp_c: num(st.temp_c), ...this._capMm() });
+    const num = (x) => (Number.isFinite(x) ? x : null), lvl = (x) => (st.source !== 'none' ? num(x) : null);       // (source "none": no level)
+    this._note('data', { level_mm: lvl(st.level_mm), litres: lvl(st.litres), fill_pct: lvl(st.fill_pct), status: st.status || '', state: est.state || '', out: num(est.out), temp_c: num(st.temp_c), ...this._capMm() });
   }
   // The capacitive level for the recording log on the screen (not the file: its `adv` lines keep the raw reading). The Recording page sets
   // `capMm` (() => mm | null) while the capacitive sensor is being read: {cap_mm} (null = no recent reading), or {} while it is not read.

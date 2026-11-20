@@ -15,6 +15,7 @@ export function initFill(ctx) {
     $('cFill').hidden = !v.enabled || !v.known;
     const st = STAGES.includes(v.stage) ? v.stage : 'idle';
     for (const id of STAGES) $('fr_' + id).hidden = id !== st;
+    renderIdle();
     // The litres box is for the report that is ready. A fill that ended without a confirm from this page (the sensor closed it, another phone
     // confirmed it, the reply was lost) or another sensor must not leave its number in the box for the next report.
     if (st !== 'ready' && $('frL').value !== '') { $('frL').value = ''; $('frL').setAttribute('aria-invalid', 'false'); }
@@ -30,6 +31,14 @@ export function initFill(ctx) {
     msg('frMsg', v.message && v.message.text, v.message && v.message.kind);
     for (const id of ['bFrStart', 'bFrEnd', 'bFrOk', 'bFrRetry']) $(id).disabled = v.busy;
     renderLast(v.lastReport);
+  }
+  // A sensor that has the fuel level calibration (firmware 4.0.1 and later: its status has `calibrated`) and is not calibrated shows no level and
+  // refuses a fill report: the card says so instead of offering Start. An older firmware has no `calibrated`: the card is as it was.
+  function renderIdle() {
+    const stt = ctx.app.status, notCal = !!stt && stt.calibrated === false;
+    $('frIdleHint').hidden = notCal;
+    $('bFrStart').hidden = notCal;
+    $('frNotCal').hidden = !notCal;
   }
   // the preparing countdown ticks between polls
   function tick() {
@@ -73,6 +82,7 @@ export function initFill(ctx) {
   }
 
   flow.on('change', render);
+  ctx.bus.on('status', renderIdle);
   flow.on('report', () => { const c = $('cLast'); if (c.scrollIntoView) setTimeout(() => c.scrollIntoView({ block: 'start' }), 50); });
   $('bFrStart').addEventListener('click', () => flow.pressStart());
   $('bFrSkip').addEventListener('click', () => flow.continueWithoutLocation());

@@ -4,6 +4,7 @@
 import { Emitter, realClock, base64Decode, concatBytes } from './util.js';
 import {
   phoneClock, respCheck, respNorm, loginErrorKey, validateTank, parseCapacity, validateSiteId, validLatLon, round6, resetPhraseOk, errText, clockInfo,
+  fin, LEVEL_CAL_MIN_MM, LEVEL_CAL_MAX_MM, levelErrText,
 } from './core.js';
 import { ProtocolError, DisconnectedError, TimeoutError } from './ble.js';
 import { loadFillLog } from './fill.js';
@@ -16,6 +17,8 @@ export class Maintenance extends Emitter {
     Object.assign(this, { client, clock, tzOffsetMin });
     this.session = null;            // {kind, grant, hoursAt, expAt}
     this.state = null;              // latest maint_state reply
+    this.level = null;              // the fuel level calibration as last heard (the `level` of maint_state / maint_level; fw 4.0.1 and later), else null
+    this.levelAt = 0;               // the clock time of that
     client.on('disconnected', () => this.endSession('connection'));
   }
 
@@ -32,6 +35,8 @@ export class Maintenance extends Emitter {
     if (!this.session) return;
     this.session = null;
     this.state = null;
+    this.level = null;
+    this.levelAt = 0;
     this.emit('ended', reason);
   }
   _clock() { return phoneClock(this.clock.now(), this.tzOffsetMin()); }
@@ -76,6 +81,7 @@ export class Maintenance extends Emitter {
       const left = r.session && Number.isFinite(r.session.expires_s) ? r.session.expires_s : 900;
       this.session = { kind: 'maintenance', grant: g, hoursAt: now + hours * 3600e3, expAt: now + left * 1000 };
       this.state = r;
+      this._takeLevel(r.level);
       this.emit('login', this.session);
       return { ok: true, kind: 'maintenance', grant: g, expiresS: left };
     } catch (e) { return null; }
@@ -108,6 +114,7 @@ export class Maintenance extends Emitter {
     const res = await this._act(async () => {
       const r = await this.client.request('maint_state');
       this.state = r;
+      this._takeLevel(r.level);
       if (this.session) {
         if (r.grant) this.session.grant = r.grant;
         if (r.session && Number.isFinite(r.session.expires_s)) this.session.expAt = this.clock.now() + r.session.expires_s * 1000;
@@ -175,6 +182,29 @@ export class Maintenance extends Emitter {
       const r = await this._call('maint_time', { t: Math.floor(this.clock.now() / 1000) });
       return { clock: clockInfo(r, this.clock.now()) };
     });
+  }
+
+  // ---- fuel level calibration (`maint_level`, calibration grant; fw 4.0.1 and later, hello.caps `levelcal`). The installer's dipstick reading
+  // becomes the level the sensor shows. Both calls answer {ok, level} with the sensor's `level` {calibrated, valid, level_mm (null while no level is
+  // shown), and once calibrated entered_mm, floor_off_mm, warn}; a refusal changes nothing on the sensor and answers {ok: false, text}, where `text`
+  // is the sensor's own sentence (no_reading, moving, height, store, bad_input) or an own one when it sent none.
+  _takeLevel(lv) {
+    if (lv && typeof lv === 'object') { this.level = lv; this.levelAt = this.clock.now(); }
+  }
+  async _level(fields) {
+    const r = await this._act(async () => {
+      const rep = await this._call('maint_level', fields);
+      this._takeLevel(rep.level);
+      return { level: this.level };
+    });
+    if (!r.ok && r.error) r.text = levelErrText(r.error);
+    return r;
+  }
+  levelState() { return this._level({}); }
+  // mm: the dipstick reading, 0 to 400 (hundredths kept). The confirmation ("Set the fuel level to 87.5 mm?") is the screen's job, before this call.
+  async levelSet(mm) {
+    if (!fin(mm) || mm < LEVEL_CAL_MIN_MM || mm > LEVEL_CAL_MAX_MM) return { ok: false, err: 'input' };
+    return this._level({ mm: Math.round(mm * 100) / 100 });
   }
 
   // typed: what the operator typed into the confirmation box (it must read RESET)

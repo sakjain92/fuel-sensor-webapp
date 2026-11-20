@@ -9,13 +9,24 @@
 // It is NOT a copy of the firmware: levels, signatures and timings are simulated.
 import { realClock, utf8, utf8Decode, base64Decode, base64Encode } from './util.js';
 import { ConnectError, DisconnectedError, MAX_LINE } from './ble.js';
-import { RESCAL_NOM, RESCAL_PROBE_MAX, RESCAL_PROBE_MIN, rescalTol } from './core.js';
+import { RESCAL_NOM, RESCAL_PROBE_MAX, RESCAL_PROBE_MIN, rescalTol, verParse, LEVEL_CAL_MIN_MM, LEVEL_CAL_MAX_MM } from './core.js';
 import { FakeFieldLog } from './fake_flog.js';
 
 const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 export const DEMO_RESPONSE = 'DEM0'.repeat(26);               // 104 symbols
 const DEFAULT_GRANT = { settings: true, firmware: true, calibration: false, older: false, service: false, hours: 1 };
 const SLOT_BYTES = 1966080;
+const LEVELCAL_FW = verParse('4.0.1');                          // firmware 4.0.1: the fuel level calibration (`maint_level`, hello.caps `levelcal`)
+// the sentences of a refused `maint_level` (firmware core/levelcal.cpp)
+const LEVEL_REFUSALS = {
+  no_reading: 'The sensor has no steady reading yet. Wait a few seconds and try again.',
+  moving: 'The fuel level is changing. Wait until filling or draining has stopped, then try again.',
+  height: 'Mounting height out of range. Check the dipstick value and how the sensor is mounted.',
+  store: 'Could not save to the device memory. Try again.',
+};
+// the refusal of `fill_start` on a sensor with the level calibration that is not calibrated (firmware core/commands.cpp, fw 4.0.1)
+const NOT_CALIBRATED_FILL = 'The fuel level is not calibrated. A fill can be recorded after the fuel level calibration.';
+const STATUS_REG = ['steady', 'moving', 'checking', 'holding', 'starting', 'no_radar', 'safe_mode', 'not_calibrated', 'no_reading'];   // register 40025
 const RAW_POINTS = 169, RAW_STEP_M = 0.002502274001017213;      // the raw frame of PROTOCOL.md 9
 const fmt5 = (x) => String(Number(x.toPrecision(5)));          // C's %.5g, as the firmware prints a limit
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -84,11 +95,18 @@ export class FakeSensor {
     this.flogOpt = o.flog || null;                 // the field log (fw 3.0.3: hello cap `flog`, commands flog_*): true, or {demo, sectors, id, boot} for FakeFieldLog
     this._flog = null;
     this.rtc = !!o.rtc;                            // a battery-backed clock chip is fitted: the sensor knows the time from the start
+    // The fuel level calibration of firmware 4.0.1 (PROTOCOL.md `maint_level`, caps `levelcal`, status `calibrated` / `warn`): on for a fake whose firmware
+    // is 4.0.1 or later, or when a test asks for it (levelcal: true). Off, the fake is an older firmware: it never mentions any of it. On and not calibrated
+    // (calibrated: true in the options starts it calibrated), the sensor shows NO level: source `none`, level 0, status `not_calibrated`.
+    this.levelcal = o.levelcal !== undefined ? !!o.levelcal : verParse(o.fw || '2.0.0') >= LEVELCAL_FW;
     this.s = {
       fw: o.fw || '2.0.0',
       boots: 12, powerInterruptions: 9, changes: 2,
       tank: { l_mm: 1755, w_mm: 790, h_mm: 190, custom: false, cap_l: 240 },
       level_mm: o.level_mm === undefined ? 123.45 : o.level_mm,
+      calibrated: !!o.calibrated, warn: o.warn || 0,                      // fuel level calibration (the options also say entered_mm, floor_off_mm)
+      entered_mm: o.entered_mm === undefined ? (o.calibrated ? (o.level_mm === undefined ? 123.45 : o.level_mm) : null) : o.entered_mm,
+      floor_off_mm: o.floor_off_mm === undefined ? (o.calibrated ? 0.4 : null) : o.floor_off_mm,
       site_id: o.site_id === undefined ? 'BLR-0042' : o.site_id,
       tilt: o.tilt === undefined ? { tilt_deg: 0.8, tilt_x_deg: -0.3, tilt_y_deg: 0.7 } : o.tilt,   // the optional tilt keys of the status; null = older firmware (none)
       site_lat: o.site_lat === undefined ? 12.971599 : o.site_lat,
@@ -123,7 +141,9 @@ export class FakeSensor {
     this.stats = { otaChunksOk: 0, otaGaps: 0, otaDups: 0, maxLead: 0 };
     this.lastOta = null;
     this.tickTimer = null;
-    this.hooks = {};                               // test hooks: {dropNotifications, swallow:[cmd], delayReply...}
+    this.hooks = {};                               // test hooks: {dropNotifications, swallow:[cmd], delayReply...}; fuel level calibration: {levelRefuse:
+                                                   // 'no_reading' | 'moving' | 'height' | 'store' (maint_level refuses; for `store` the real sensor undoes the entry it could not save, so here too nothing changes), noLevel: 'no_reading' | 'starting' |
+                                                   // 'safe_mode' | 'no_radar' (no level now: source none and that status word), floorOffMm: number}
   }
 
   // ------------------------------------------------------------------ connection plumbing
@@ -265,6 +285,7 @@ export class FakeSensor {
     else if (level === 'maintenance') { if (s.kind !== 'maintenance' || !(s.grant.settings || s.grant.firmware || s.grant.calibration)) throw new Err('grant', 'no maintenance grant'); }
     else if (level === 'settings') { if (s.kind !== 'maintenance' || !s.grant.settings) throw new Err('grant', 'no settings grant'); }
     else if (level === 'firmware') { if (s.kind !== 'maintenance' || !s.grant.firmware) throw new Err('grant', 'no firmware grant'); }
+    else if (level === 'calibration') { if (s.kind !== 'maintenance' || !s.grant.calibration) throw new Err('grant', 'no calibration grant'); }
     else if (level === 'service') { if (s.kind !== 'service') throw new Err('grant', 'needs a service login'); }
     s.lastMs = this.clock.now();
     return s;
@@ -278,22 +299,52 @@ export class FakeSensor {
 
   // ------------------------------------------------------------------ views
   _lpmm() { return this.s.tank.l_mm * this.s.tank.w_mm / 1e6; }
-  _litres() { return this.s.level_mm * this._lpmm(); }
+  // The highest level the tank can hold (firmware status.h tank_top_mm, fw 4.0.1): the height, or the level at which the capacity is reached,
+  // whichever is higher (the two are entered separately and need not agree).
+  _top() {
+    const t = this.s.tank, lp = this._lpmm(), f = lp > 0 ? t.cap_l / lp : 0;
+    return f > t.h_mm ? f : t.h_mm;
+  }
+  // The level the sensor SHOWS. From firmware 4.0.1 it is clamped to 0 .. the top of the tank (an entered or tracked level beyond it is shown as the
+  // top, with warning bit 4 once it is more than 5 mm beyond); an older firmware shows what it has.
+  _mm() { return this.levelcal ? clamp(this.s.level_mm, 0, this._top()) : this.s.level_mm; }
+  // Warning bit 4, "level outside the tank": raised once the level is more than 5 mm above the top (and kept, like every warning bit, until the next
+  // calibration). The device raises it at its next reading; here every look at the state does.
+  _rangeWarn() {
+    const s = this.s;
+    if (this.levelcal && s.calibrated && this._noLevelWord() === null && !(s.warn & 4) && s.level_mm > this._top() + 5) s.warn |= 4;
+  }
+  _litres() { return this._mm() * this._lpmm(); }
   _capacity() { return this.s.tank.cap_l; }
   _pct() { return Math.max(0, Math.min(100, 100 * this._litres() / this._capacity())); }
   _statusWord() {
     if (this.s.fuel.active === 'fill' || this.s.fuel.active === 'drain') return 'moving';
     return 'steady';
   }
+  // The status word while the sensor shows NO level (source `none`), else null: not calibrated (firmware 4.0.1), or a test's hooks.noLevel.
+  _noLevelWord() {
+    if (this.hooks.noLevel) return this.hooks.noLevel;
+    return this.levelcal && !this.s.calibrated ? 'not_calibrated' : null;
+  }
+  _word() { return this._noLevelWord() || this._statusWord(); }
+  // The `level` object of maint_state and maint_level (PROTOCOL.md 4.2)
+  _levelObj() {
+    const s = this.s, valid = this._noLevelWord() === null;
+    this._rangeWarn();
+    const o = { calibrated: s.calibrated, valid, level_mm: valid ? r2(this._mm()) : null };
+    if (s.calibrated) Object.assign(o, { entered_mm: r2(s.entered_mm), floor_off_mm: r2(s.floor_off_mm), warn: s.warn });
+    return o;
+  }
   _tank() {
     const t = this.s.tank;
     return { l_mm: r1(t.l_mm), w_mm: r1(t.w_mm), h_mm: r1(t.h_mm), lpmm: r5(this._lpmm()), custom: t.custom, cap_l: r1(t.cap_l) };
   }
   statusObject() {
+    this._rangeWarn();
     const s = this.s, lit = this._litres(), cap = this._capacity();
     const o = {
       fw: s.fw, variant: this.variant, chip: this.chip, mac: this.mac,
-      level_mm: r2(s.level_mm), litres: r2(lit), capacity_l: r1(cap), fill_pct: r1(this._pct()),
+      level_mm: r2(this._mm()), litres: r2(lit), capacity_l: r1(cap), fill_pct: r1(this._pct()),
       raw_adc: clamp(Math.round(lit * 4095 / cap), 0, 4095),
       source: 'estimate', status: this._statusWord(), age_s: 0.3, temp_c: 38,
       uptime_s: this.uptimeS(), boots: s.boots, power_interruptions: s.powerInterruptions, changes: s.changes,
@@ -303,6 +354,9 @@ export class FakeSensor {
       health: { safe_mode: false, trial: this.clock.now() < s.trialUntil, reset_reason: 'poweron', coredump: !!s.coredump },
     };
     if (s.tilt) Object.assign(o, s.tilt);
+    const none = this._noLevelWord();
+    if (none) Object.assign(o, { level_mm: 0, litres: 0, fill_pct: 0, raw_adc: 0, source: 'none', status: none });     // no level: the numbers read 0 (PROTOCOL.md 2)
+    if (this.levelcal) Object.assign(o, { calibrated: s.calibrated, warn: s.warn });
     if (this.variant === 'debug') Object.assign(o, { tracker: 'v6.11', calibration: '0x4242', state: 'confirmed', moving: this._statusWord() === 'moving' });
     return o;
   }
@@ -314,10 +368,11 @@ export class FakeSensor {
     const s = this.s, w = new Array(this.regsMap === 1 || this.regsMap === null ? 38 : 41).fill(0), lit = this._litres(), cap = this._capacity();
     const u32 = (i, v) => { v = Math.max(0, Math.min(0xfffffffe, Math.round(v))); w[i] = (v >>> 16) & 0xffff; w[i + 1] = v & 0xffff; };
     const s32 = (i, v) => { const x = v | 0; w[i] = (x >>> 16) & 0xffff; w[i + 1] = x & 0xffff; };
-    w[0] = clamp(Math.round(lit * 4095 / cap), 0, 4095);
+    const none = this._noLevelWord();                              // no level: raw level 0, level / volume / percent invalid, `level valid` clear
+    w[0] = none ? 0 : clamp(Math.round(lit * 4095 / cap), 0, 4095);
     w[1] = 38 & 0xffff;
-    w[2] = clamp(Math.round(s.level_mm * 10), 0, 0xfffe);
-    u32(3, lit * 100);
+    w[2] = none ? 0xffff : clamp(Math.round(this._mm() * 10), 0, 0xfffe);
+    if (none) { w[3] = 0xffff; w[4] = 0xffff; } else u32(3, lit * 100);
     for (let i = 0; i < 3; i++) w[5 + i] = parseInt(this.mac.substr(i * 4, 4), 16);
     const sid = s.site_id || '';
     for (let i = 0; i < 8; i++) w[8 + i] = ((sid.charCodeAt(2 * i) || 0) << 8) | (sid.charCodeAt(2 * i + 1) || 0);
@@ -325,15 +380,15 @@ export class FakeSensor {
     if (s.site_lon === null) s32(18, 0x7fffffff); else s32(18, Math.round(s.site_lon * 1e6));
     w[20] = Math.round(s.tank.l_mm); w[21] = Math.round(s.tank.w_mm); w[22] = Math.round(s.tank.h_mm);
     w[23] = Math.min(65535, s.changes);
-    w[24] = ['steady', 'moving', 'checking', 'holding', 'starting', 'no_radar', 'safe_mode'].indexOf(this._statusWord());
-    w[25] = 1 | 2 | 4 | (s.fuel.active === 'none' ? 0 : 16);
+    w[24] = STATUS_REG.indexOf(this._word());
+    w[25] = (none ? 0 : 1 | 2) | (none === 'no_reading' || none === 'no_radar' ? 0 : 4) | (none === 'safe_mode' ? 8 : 0) | (s.fuel.active === 'none' ? 0 : 16);
     u32(26, s.fuel.filled_l * 100); u32(28, s.fuel.drained_l * 100);
     w[30] = s.fuel.fills; w[31] = s.fuel.drains; w[32] = s.powerInterruptions;
     u32(33, this.uptimeS());
     const [ma, mi, pa] = s.fw.split('.').map(Number);
     w[35] = ma * 2048 + mi * 32 + pa;
     w[36] = 0;
-    w[37] = Math.round(this._pct() * 10);
+    w[37] = none ? 0xffff : Math.round(this._pct() * 10);
     if (w.length > 38) {                                         // map 2: tilt (0.1 deg); 0xFFFF / 0x8000 while there is no reading or no accelerometer
       const t = s.tilt || {}, tenth = (v, lim) => clamp(Math.round(v * 10), -lim, lim);
       w[38] = t.tilt_deg == null ? 0xffff : tenth(Math.abs(t.tilt_deg), 900);
@@ -356,10 +411,11 @@ export class FakeSensor {
     const lpmm = this._lpmm();
     if (this.fill.stage === 'filling') {
       const dL = this.pourLps * dt;
-      s.level_mm += dL / lpmm;
+      // (fw 4.0.1: a tank holds no more than its top; a level already beyond it, entered by an installer, is left as it is)
+      s.level_mm = this.levelcal ? Math.max(s.level_mm, Math.min(s.level_mm + dL / lpmm, this._top())) : s.level_mm + dL / lpmm;
       s.fuel.filled_l += dL;
       s.fuel.active = 'fill';
-      s.fuel.pending_l = (s.level_mm - this.fill.levelBefore) * lpmm;
+      s.fuel.pending_l = (this._mm() - this.fill.levelBefore) * lpmm;
     } else if (this.burnLps > 0 && this.fill.stage === 'idle') {
       const dL = this.burnLps * dt;
       s.level_mm = Math.max(5, s.level_mm - dL / lpmm);
@@ -387,7 +443,7 @@ export class FakeSensor {
 
   // ------------------------------------------------------------------ commands: general and login
   cmd_hello() { return { proto: 1, fw: this.s.fw, variant: this.variant, chip: this.chip, mac: this.mac, caps: this._caps(), min_app: 1 }; }
-  _caps() { return ['status', 'fill', 'maint', 'ota', 'link', 'regs', 'clock', 'capacity'].concat(this.chip === 'esp32c3' ? ['rescal', 'range'] : [], this.variant === 'debug' ? ['logs', 'raw'] : [], this.flogOpt ? ['flog'] : []); }
+  _caps() { return ['status', 'fill', 'maint', 'ota', 'link', 'regs', 'clock', 'capacity'].concat(this.chip === 'esp32c3' ? ['rescal', 'range'] : [], this.levelcal ? ['levelcal'] : [], this.variant === 'debug' ? ['logs', 'raw'] : [], this.flogOpt ? ['flog'] : []); }
   cmd_ping() { return {}; }
 
   // ------------------------------------------------------------------ the field log (FIELDLOG.md 7; open, no login)
@@ -470,6 +526,7 @@ export class FakeSensor {
       coredump: { present: !!s.coredump, size: s.coredump ? s.coredump.length : 0 },
       tank: this._tank(),
       ...(this.chip === 'esp32c3' ? { output: this._emuReply() } : {}),
+      ...(this.levelcal ? { level: this._levelObj() } : {}),
       ota: { trial: this.clock.now() < s.trialUntil, trial_remaining_s: Math.max(0, Math.round((s.trialUntil - this.clock.now()) / 1000)), rolled_back: s.rolledBack, rejected_version: '', slot_bytes: this.slotBytes },
     };
   }
@@ -481,6 +538,25 @@ export class FakeSensor {
     if (req.emulation !== 'electronic' && req.emulation !== 'sam1') throw new Err('bad_input', 'emulation: electronic or sam1.');
     if (req.emulation !== this.s.emulation) { this.s.emulation = req.emulation; this.s.changes++; }
     return this._emuReply();
+  }
+  // The fuel level calibration (PROTOCOL.md 4.2 `maint_level`, calibration grant): without `mm` only the state; with `mm` (the dipstick level, 0 to 400,
+  // hundredths kept) the sensor takes that as the level it shows, clears `warn`, and counts one settings change. A refusal changes nothing:
+  // no_reading (hooks.noLevel while calibrating), moving (fuel being added or drawn), height and store (hooks.levelRefuse). `store` is the case
+  // where the sensor accepted the entry but could not save the calibration record: it undoes the entry (fw 4.0.1), so the level shown stays what it was.
+  cmd_maint_level(req) {
+    if (!this.levelcal) throw new Err('unknown_cmd', 'unknown command');       // an older firmware has no such command
+    this._need('calibration');
+    if (req.mm === undefined) return { level: this._levelObj() };
+    if (typeof req.mm !== 'number' || !Number.isFinite(req.mm) || req.mm < LEVEL_CAL_MIN_MM || req.mm > LEVEL_CAL_MAX_MM) throw new Err('bad_input', 'The fuel level must be between 0 and 400 mm.');
+    const mm = Math.round(req.mm * 100) / 100, s = this.s;
+    let why = this.hooks.levelRefuse || null;
+    if (!why && this.hooks.noLevel) why = 'no_reading';
+    if (!why && (s.fuel.active === 'fill' || s.fuel.active === 'drain')) why = 'moving';
+    if (why) throw new Err(why, LEVEL_REFUSALS[why]);
+    s.level_mm = mm; s.entered_mm = mm; s.calibrated = true; s.warn = 0;
+    s.floor_off_mm = this.hooks.floorOffMm === undefined ? 0.4 : this.hooks.floorOffMm;
+    s.changes++;
+    return { level: this._levelObj() };
   }
   cmd_maint_tank(req) {
     this._need('settings');
@@ -646,6 +722,7 @@ export class FakeSensor {
       s.reports = []; s.sinceReset = 0; s.changes++;
       s.site_id = null; s.site_lat = null; s.site_lon = null;               // the site ID and location are cleared too
       s.emulation = 'electronic';                                           // and the sensor type (items = 125); the factory calibration (s.res.saved) stays
+      s.calibrated = false; s.warn = 0; s.entered_mm = null; s.floor_off_mm = null;      // the fuel level calibration is cleared (fw 4.0.1)
       this.fill = { stage: 'idle' };
     }
     const prev = s.fw;
@@ -769,10 +846,12 @@ export class FakeSensor {
     const hasLat = req.lat !== undefined, hasLon = req.lon !== undefined;
     if (hasLat !== hasLon) throw new Err('bad_input', 'lat and lon come together');
     if (hasLat && (typeof req.lat !== 'number' || typeof req.lon !== 'number' || Math.abs(req.lat) > 90 || Math.abs(req.lon) > 180)) throw new Err('bad_input', 'lat/lon');
+    // fw 4.0.1: no report without a level (it would be signed as "sensor 0 L"); only a sensor that has the level calibration, and before `busy`
+    if (this.levelcal && !this.s.calibrated) throw new Err('not_calibrated', NOT_CALIBRATED_FILL);
     if (this._fillStage() !== 'idle') throw new Err('busy', 'a fill report is already open');
     this._refillTokens();
     if (this.s.tokens < 1) throw new Err('rate_limited', 'too many fill reports');
-    this.fill = { stage: 'filling', phone_start: req.t, tz_min: req.tz_min, startMs: now, levelBefore: this.s.level_mm,
+    this.fill = { stage: 'filling', phone_start: req.t, tz_min: req.tz_min, startMs: now, levelBefore: this._mm(),
       lat: hasLat ? r6(req.lat) : null, lon: hasLat ? r6(req.lon) : null, restarted: false, devStart: this._utc(),
       flowing: this.s.fuel.active === 'fill' || this.s.fuel.active === 'drain' };      // a fill or a drain was open at Start (flag bit 8)
     return this._fillState();
@@ -798,7 +877,7 @@ export class FakeSensor {
     if (typeof req.litres !== 'number' || !(req.litres >= 0 && req.litres <= 100000)) throw new Err('bad_input', 'litres');
     if (req.moved_m !== undefined && !(Number.isInteger(req.moved_m) && req.moved_m >= 0)) throw new Err('bad_input', 'moved_m');
     const f = this.fill, s = this.s, lpmm = this._lpmm();
-    const after = s.level_mm;
+    const after = this._mm();
     const sensorL = Math.max(0, (after - f.levelBefore) * lpmm);
     s.serial++; s.sinceReset++;
     s.tokens = Math.max(0, s.tokens - 1); if (!s.tokenAt) s.tokenAt = this.clock.now();

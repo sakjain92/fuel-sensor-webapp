@@ -2,6 +2,7 @@
 import {
   STR, t, fin, fmtWait, fmtLpmm, fmtLitres, numStr, tankText, grantText, buildText, validateTank, parseCapacity, fmtNum, CAP_DEFAULT, siteLocText, fixIsWeak, resetPhraseOk,
   fillWhen, fillL, fillFlagNames, fillShareText, errText, clockDiffText, clockSrcText, hasCap as hasFeature, EMULATIONS,
+  parseDipstick, fmtDip, levelConfirmText, levelCardView,
 } from '../core.js';
 import { makeReportFile, deliverFile, downloadBlob } from '../export.js';
 import { $, msg, busy, confirmBox, copyTxt } from './dom.js';
@@ -16,6 +17,8 @@ export function initMaint(ctx) {
   let clk = null;                       // the sensor clock as last read: {set, utc, src, rtc, diffS}
   let resSaved = null;                  // resistive output calibration: values in the sensor's memory (null: not read)
   let formFor = null;                   // the sensor the typed-in (unsaved) values are for
+  let lvPending = null;                 // fuel level calibration: the reading the open confirmation asks about (mm), else null
+  let lvWarnKey = '';                   // the reasons now listed in the card's recalibration notice
 
   function renderSess() {
     const left = maint.sessionLeftMs();
@@ -39,6 +42,8 @@ export function initMaint(ctx) {
     $('cSite').hidden = !g.settings;
     $('cClock').hidden = !g.settings;
     $('cReset').hidden = !g.settings;
+    $('cLvl').hidden = !levelCardOn();
+    if (!$('cLvl').hidden) renderLevel();
     $('cRes').hidden = !g.settings || !hasFeature(ctx.client.hello, 'rescal');     // a board with the resistive output
     $('cEmu').hidden = !g.settings || !hasFeature(ctx.client.hello, 'rescal') || !ms.output;   // (and a firmware that reports it)
     if (!$('cEmu').hidden && !emuDirty && EMULATIONS.includes(ms.output.emulation)) $('emuSel').value = ms.output.emulation;
@@ -63,7 +68,57 @@ export function initMaint(ctx) {
   async function load() {
     const r = await maint.loadState();
     if (!r.ok && !r.ended) msg('mErr', r.text, 'bad'); else $('mErr').hidden = true;
+    if (r.ok && levelCardOn() && !maint.level) await maint.levelState();         // (maint_state carries the level on a firmware with the calibration)
     renderMaint();
+  }
+
+  // ---- fuel level calibration (fw 4.0.1 and later: hello.caps `levelcal` and a calibration approval): the installer's dipstick reading
+  const levelCardOn = () => !!maint.grant.calibration && hasFeature(ctx.client.hello, 'levelcal');
+  const levelView = () => levelCardView(maint.level, app.status, !!app.status && app.statusAt > maint.levelAt);
+  function renderLevel() {
+    const v = levelView();
+    $('lvNow').textContent = v.text;
+    $('lvWarn').hidden = !v.warn;
+    const key = v.warn ? v.reasons.join('|') + '#' + v.warn : '';
+    if (key !== lvWarnKey) {
+      lvWarnKey = key;
+      const ul = $('lvWarnL');
+      ul.textContent = '';
+      for (const r of v.reasons) { const li = document.createElement('li'); li.textContent = r; ul.appendChild(li); }
+      $('lvWarnH').textContent = v.warn ? STR.warnHint : '';
+    }
+    if (lvPending !== null) $('lvConfQ').textContent = levelConfirmText(lvPending, v.levelMm);       // (the level moves while the question is open)
+  }
+  function lvInput(showErr) {
+    const v = parseDipstick($('lvIn').value);
+    const bad = !v.ok && (showErr || v.err !== 'empty');
+    $('lvIn').setAttribute('aria-invalid', bad ? 'true' : 'false');
+    msg('lvErr', bad ? STR['lvIn_' + v.err] : '', 'bad');
+    return v;
+  }
+  function lvClose() { lvPending = null; $('lvConf').hidden = true; $('bLvCal').hidden = false; }
+  function lvAsk() {                                              // Calibrate: check the value, then repeat it and ask (nothing is sent yet)
+    $('lvMsg').hidden = true;
+    const v = lvInput(true);
+    if (!v.ok) return;
+    lvPending = v.v;
+    $('lvConfQ').textContent = levelConfirmText(v.v, levelView().levelMm);
+    $('lvConf').hidden = false;
+    $('bLvCal').hidden = true;
+  }
+  async function lvConfirm() {
+    const mm = lvPending;
+    lvClose();
+    if (mm === null) return;
+    const btn = $('bLvCal');
+    busy(btn, true, STR.saving);
+    const r = await maint.levelSet(mm);
+    busy(btn, false);
+    if (r.ok) {
+      const e = r.level && Number.isFinite(r.level.entered_mm) ? r.level.entered_mm : mm;
+      msg('lvMsg', t('lvDone', { v: fmtDip(e) }), 'ok');
+      renderLevel();                                               // the card now says what the sensor answered
+    } else if (!r.ended) msg('lvMsg', r.text || STR.lve_bad_input, 'bad');
   }
 
   // ---- Resistive Sensor Emulation: a drop-down and Save; what the sensor holds is shown again at every load
@@ -312,6 +367,10 @@ export function initMaint(ctx) {
   $('rstIn').addEventListener('input', () => { $('bRstYes').disabled = !resetPhraseOk($('rstIn').value); });
   $('bRstYes').addEventListener('click', resetDefaults);
   confirmBox($('bRs'), $('rsConf'), $('bRsYes'), $('bRsNo'), restartDevice);
+  $('lvIn').addEventListener('input', () => { $('lvMsg').hidden = true; if (lvPending !== null) lvClose(); lvInput(false); });   // (another value: the question is asked again)
+  $('bLvCal').addEventListener('click', lvAsk);
+  $('bLvYes').addEventListener('click', lvConfirm);
+  $('bLvNo').addEventListener('click', lvClose);
   $('bFinish').addEventListener('click', () => ctx.finishMaint());
   $('bFinish2').addEventListener('click', () => ctx.finishMaint());
   $('bFillsAll').addEventListener('click', shareAll);
@@ -320,8 +379,9 @@ export function initMaint(ctx) {
   return {
     enter() {
       const mac = (ctx.client.hello && ctx.client.hello.mac) || '';
-      if (mac !== formFor) { formFor = mac; tankDirty = capDirty = emuDirty = false; }      // values typed for another sensor are not offered for this one
-      for (const id of ['mErr', 'capMsg', 'capErr', 'tankMsg', 'siteMsg', 'siteErr', 'locMsg', 'crashMsg', 'rsMsg', 'rstMsg', 'fillsAllMsg', 'clkErr', 'clkMsg', 'clkConf', 'resMsg', 'resConf', 'emuMsg']) $(id).hidden = true;
+      if (mac !== formFor) { formFor = mac; tankDirty = capDirty = emuDirty = false; $('lvIn').value = ''; $('lvIn').setAttribute('aria-invalid', 'false'); }      // values typed for another sensor are not offered for this one
+      for (const id of ['mErr', 'capMsg', 'capErr', 'tankMsg', 'siteMsg', 'siteErr', 'locMsg', 'crashMsg', 'rsMsg', 'rstMsg', 'fillsAllMsg', 'clkErr', 'clkMsg', 'clkConf', 'resMsg', 'resConf', 'emuMsg', 'lvErr', 'lvMsg']) $(id).hidden = true;
+      lvClose();
       resSaved = null;
       renderRes();                                                 // (not the calibration state of the sensor visited before, while this one is asked)
       fix = null;
